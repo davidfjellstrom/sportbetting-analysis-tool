@@ -17,4 +17,6 @@ jobs:
       - run: ruff check .
       # Owner modules are unimplemented on a fresh clone; keep CI green on the
       # parts that exist. Drop the marker filter once odds/features/stats land.
-      - run: pytest -m "not owner"
+      # Exit code 5 is "no tests collected": tolerated only until the first
+      # test suite is merged, then remove the `|| [ $? -eq 5 ]`.
+      - run: pytest -m "not owner" || [ $? -eq 5 ]
