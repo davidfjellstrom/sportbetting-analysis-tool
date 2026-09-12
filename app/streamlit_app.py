@@ -91,7 +91,8 @@ def currency_code(frame: pd.DataFrame) -> str:
     if "currency" in frame.columns:
         values = frame["currency"].dropna().unique()
         if len(values) == 1:
-            return str(values[0]).upper()
+            code = str(values[0])
+            return code if code == "units" else code.upper()
     return "EUR"
 
 
@@ -106,7 +107,33 @@ def money(value: float, code: str, decimals: int = 0, signed: bool = False) -> s
     magnitude = abs(value) if signed else value
     if symbol:
         return f"{sign}{symbol}{magnitude:,.{decimals}f}"
+    if code == "units":
+        return f"{sign}{magnitude:,.{decimals}f} u"
     return f"{sign}{magnitude:,.{decimals}f} {code}"
+
+
+#: Monetary columns, the only ones a change of unit may touch. ``roi`` is a
+#: ratio and ``n_bets`` a count; scaling either would be a bug.
+MONEY_COLUMNS = ("stake", "turnover", "pl", "price_adjusted_turnover")
+
+
+def to_units(frame: pd.DataFrame, unit: float) -> pd.DataFrame:
+    """Express every amount in notional units of ``unit`` currency each.
+
+    CLAUDE.md -> Privacy: the method is what is on display, not the amounts.
+    Dividing every monetary column by one constant leaves ROI, fill rate, the
+    odds ratio and every integrity check untouched, so nothing downstream has
+    to know. The currency column is relabelled so the label cannot lie.
+    """
+    if unit <= 0:
+        raise ValueError("unit must be positive")
+    out = frame.copy()
+    for col in MONEY_COLUMNS:
+        if col in out.columns:
+            out[col] = out[col] / unit
+    if "currency" in out.columns:
+        out["currency"] = "units"
+    return out
 
 
 def style_chart(chart: alt.Chart) -> alt.Chart:
@@ -511,13 +538,29 @@ except FileNotFoundError as exc:
     st.warning(str(exc))
     st.stop()
 
+# Optional: show amounts in notional units rather than currency. Applied here,
+# before anything reads ``df``, so every figure, filter and chart agrees.
+# Default unit is the median matched stake, so "1 unit" reads as "one typical
+# bet" — a scale that means something even with the currency hidden.
+IN_UNITS = st.sidebar.toggle("Show amounts in units", value=False)
+if IN_UNITS:
+    _typical = float(loader.matched(df)["turnover"].median())
+    UNIT = st.sidebar.number_input(
+        "1 unit =", min_value=0.01, value=round(_typical, 2), step=1.0,
+        help="In the export's own currency. Median matched stake by default.",
+    )
+    df = to_units(df, UNIT)
+
 # An upload the user has explicitly opted to merge (Upload tab). Read before
 # the tabs render, because it has to reach every figure below — and announced
 # in the sidebar, because it moves numbers the README quotes as fixed.
 UPLOADED = st.session_state.get("uploaded")
 MERGED = UPLOADED is not None and st.session_state.get("merge_upload", False)
 if MERGED:
-    df = pd.concat([df, UPLOADED], ignore_index=True)
+    df = pd.concat(
+        [df, to_units(UPLOADED, UNIT) if IN_UNITS else UPLOADED],
+        ignore_index=True,
+    )
 
 matched = loader.matched(df)
 report = loader.describe(df)
@@ -580,6 +623,8 @@ with upload:
 
     if file is not None and new is not None:
         st.session_state["uploaded"] = new
+        if IN_UNITS:
+            new = to_units(new, UNIT)
         new_matched = loader.matched(new)
         new_report = loader.describe(new)
         new_cur = currency_code(new)
