@@ -4,10 +4,10 @@ Four years of personal sports betting history from Sportmarket Pro
 (Nov 2022 – Sep 2026), and the machinery that decides which patterns in it are
 real.
 
-**The deliverable is a method, not a dashboard.** A set of candidate patterns
-is put through the same skeptic battery, and every verdict — replicated,
-insufficient, noise — is reported. A rejection produced by a working test is a
-result, not an omission.
+An analysis app: load the exports, check them, explore performance by
+segment, and put candidate patterns through one skeptic battery. Every
+verdict — replicated, insufficient, noise — is reported; a rejection produced
+by a working test is a result, not an omission.
 
 No results are published in this repository yet. Every figure must be computed
 from the exports currently in `data/raw/` by the code in `src/`, with the

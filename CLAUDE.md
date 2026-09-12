@@ -4,13 +4,17 @@ Read this before writing or modifying any code in this repo.
 
 ## What this project is
 
-An analysis of ~4 years of personal sports betting history exported from
-Sportmarket Pro (Nov 2022 – Sep 2026).
+An analysis app for ~4 years of personal sports betting history exported from
+Sportmarket Pro (Nov 2022 – Sep 2026). It loads the exports, checks them,
+lets the owner explore performance by segment, and tests candidate patterns
+with statistics that respect how the data is structured. The Streamlit app in
+`app/` is the front end; the modules in `src/` do the work.
 
-**The deliverable is a method, not a dashboard.** The interesting result is not
-"here are patterns in the data" — it is "here are N candidate patterns, here is
-the machinery that tested them, and most turned out to be noise." Findings that
-are rejected are content, not failure. Do not quietly drop them from the report.
+That is the whole scope, and it is enough. It does not need to become a
+betting model, a prediction engine or a product. What it does need is honesty
+about uncertainty: a pattern that fails the tests is reported as failed, not
+dropped, and no slice is presented as an edge until it has survived the
+statistical rules below.
 
 **Nothing is established yet.** This file deliberately contains no numbers
 from the data. Every figure — turnover, yield, coverage, share of missing
@@ -40,7 +44,7 @@ CSVs in `data/raw/`, one per year, same schema. **Never commit these.**
 | `Stake` | Intended stake |
 | `Customer turnover` | Actually matched stake. `0` means fully unmatched |
 | `Customer price adjusted turnover` | See below. Column present in every file but only populated in later years |
-| `Customer currency` | Expected to be `EUR` throughout. Dropped by the loader; a non-EUR row would silently mix currencies, so `checks.py` guards it |
+| `Customer currency` | Expected to be `EUR` throughout. Kept by the loader so that `checks.py` can prove it rather than assume it; a non-EUR row would silently mix currencies |
 | `Customer P/L` | Profit or loss in EUR |
 | `ROI` | `P/L / turnover` |
 
@@ -156,8 +160,6 @@ report, with verdicts, including the ones that fail.
   friendlies, league familiarity.
 
 ## Division of labour
-
-The owner is building this to learn. Respect the boundary.
 
 **You may write:** repo scaffolding, `loader.py`, test harness setup, the
 Streamlit app in `app/`, README structure, linting config.
