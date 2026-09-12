@@ -1,0 +1,23 @@
+# Colours come from the data-viz reference palette (dark instance), not taste.
+# The diverging pair blue<->red was validated against this surface: CVD ΔE 19.2
+# (protan), normal-vision ΔE 29.0, both marks >= 3:1 contrast. Red/green would
+# have been the conventional choice for profit/loss and is exactly the pair that
+# fails for the most common colour blindness.
+[theme]
+base                     = "dark"
+backgroundColor          = "#0d0d0d"   # page plane
+secondaryBackgroundColor = "#1a1a19"   # chart surface, sidebar, table header
+textColor                = "#ffffff"   # primary ink
+primaryColor             = "#3987e5"   # blue: widgets, focus, positive pole
+linkColor                = "#3987e5"
+codeBackgroundColor      = "#1a1a19"
+
+blueColor   = "#3987e5"
+redColor    = "#e66767"
+greenColor  = "#0ca30c"
+orangeColor = "#d95926"
+yellowColor = "#c98500"
+violetColor = "#9085e9"
+grayColor   = "#898781"
+
+font = "system-ui, -apple-system, 'Segoe UI', sans-serif"
