@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# Never commit the exports. They contain personal financial information.
+# See CLAUDE.md -> Privacy.
+# ---------------------------------------------------------------------------
+# Ignore the contents, keep the directories so a fresh clone has somewhere
+# to put the exports. (Ignoring `data/raw/` itself would hide the .gitkeep too:
+# git does not descend into an ignored directory.)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.csv
+*.parquet
+*.xlsx
+
+# Reports may embed real monetary values
+reports/*
+!reports/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Agent tooling: symlinks into .venv created by the streamlit package
+.claude/
+.agents/
