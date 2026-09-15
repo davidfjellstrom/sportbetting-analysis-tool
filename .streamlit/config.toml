@@ -21,3 +21,13 @@ violetColor = "#9085e9"
 grayColor   = "#898781"
 
 font = "system-ui, -apple-system, 'Segoe UI', sans-serif"
+
+# Hide the Deploy button and the developer menu (Rerun / Clear cache / Print /
+# Record screen). Nothing analytical lives there. Keyboard shortcuts still
+# work — R reruns, C clears the cache — and runOnSave replaces the "Auto
+# rerun" toggle: edit a source file and the page reloads on its own.
+[client]
+toolbarMode = "minimal"
+
+[server]
+runOnSave = true

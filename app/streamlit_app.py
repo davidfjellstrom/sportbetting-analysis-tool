@@ -23,21 +23,16 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import checks  # noqa: E402
 import loader  # noqa: E402
 
-st.set_page_config(page_title="Sportmarket analysis", layout="wide")
+st.set_page_config(
+    page_title="Sportmarket analysis",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 
 @st.cache_data(show_spinner=False)
-def _load(raw_dir: str) -> pd.DataFrame:
-    return loader.load_raw(raw_dir)
-
-
-def pending(module: str, what: str) -> None:
-    """Placeholder for a panel whose module the owner has not written yet."""
-    st.info(
-        f"**{what}** needs `src/{module}.py`, which is the repo owner's to write "
-        "(CLAUDE.md → Division of labour). The panel appears once it lands.",
-        icon="🚧",
-    )
+def _load(data_dir: str) -> pd.DataFrame:
+    return loader.load_raw(data_dir)
 
 
 #: Chart ink, from the data-viz reference palette (dark instance). The
@@ -79,6 +74,12 @@ SERIES_COLOURS: list[str] = [
 MAX_SERIES = len(SERIES_COLOURS)
 
 CURRENCY_SYMBOLS = {"EUR": "\u20ac", "GBP": "\u00a3", "USD": "$", "SEK": "kr"}
+#: Written after the number ("218 kr"), not before it.
+SUFFIX_CURRENCIES = frozenset({"SEK"})
+
+#: Currencies an uploader can label their file with. A file whose currency
+#: column names something else gets that added at the front of the list.
+DISPLAY_CURRENCIES = ("EUR", "USD", "SEK")
 
 
 def currency_code(frame: pd.DataFrame) -> str:
@@ -86,12 +87,13 @@ def currency_code(frame: pd.DataFrame) -> str:
 
     ``checks.check_single_currency`` guarantees there is only one, so taking the
     first is safe — and if a future export ever mixes currencies, that check
-    fails loudly on the Method status tab before this label can mislead anyone.
+    fails loudly above the tabs before this label can mislead anyone.
     """
     if "currency" in frame.columns:
         values = frame["currency"].dropna().unique()
         if len(values) == 1:
-            return str(values[0]).upper()
+            code = str(values[0])
+            return code if code == "units" else code.upper()
     return "EUR"
 
 
@@ -104,9 +106,14 @@ def money(value: float, code: str, decimals: int = 0, signed: bool = False) -> s
     sign = "+" if signed and value >= 0 else "-" if signed and value < 0 else ""
     symbol = CURRENCY_SYMBOLS.get(code)
     magnitude = abs(value) if signed else value
+    number = f"{magnitude:,.{decimals}f}"
+    if symbol and code in SUFFIX_CURRENCIES:
+        return f"{sign}{number} {symbol}"
     if symbol:
-        return f"{sign}{symbol}{magnitude:,.{decimals}f}"
-    return f"{sign}{magnitude:,.{decimals}f} {code}"
+        return f"{sign}{symbol}{number}"
+    if code == "units":
+        return f"{sign}{number} u"
+    return f"{sign}{number} {code}"
 
 
 def style_chart(chart: alt.Chart) -> alt.Chart:
@@ -280,53 +287,48 @@ def pl_bars_chart(frame: pd.DataFrame, code: str) -> alt.Chart:
     return bars + zero
 
 
-def render_checks(frame: pd.DataFrame) -> None:
-    """Run the integrity battery over a frame and show what it found.
+def render_checks(report_checks: checks.CheckReport) -> None:
+    """Show what the integrity battery found: a footnote when it passed, a
+    banner and the full table when it did not.
 
     Same battery for the lifetime data and for a single uploaded file: a new
     export is worth nothing until it has passed the checks the old ones pass.
     """
-    report_checks = checks.run_checks(frame)
+    table = pd.DataFrame(
+        [
+            {
+                "": ""
+                if c.severity is checks.Severity.INFO
+                else ("ok" if c.passed else "FAIL"),
+                "Severity": c.severity.value,
+                "Check": c.name,
+                "Detail": c.detail,
+            }
+            for c in report_checks.checks
+        ]
+    )
     if report_checks.ok:
-        st.success(
-            f"No errors across {len(report_checks.checks)} checks"
-            + (
-                f", {len(report_checks.warnings)} warning(s)"
-                if report_checks.warnings
-                else ""
-            ),
-            icon="✅",
-        )
+        n_warn = len(report_checks.warnings)
+        with st.expander(
+            f"{len(report_checks.checks)} integrity checks passed"
+            + (f", {n_warn} warning(s)" if n_warn else "")
+        ):
+            st.dataframe(table, width="stretch", hide_index=True)
+            st.caption("`checks.py` reports; it never repairs.")
     else:
         st.error(
             f"{len(report_checks.errors)} integrity check(s) failed — "
-            "results are not trustworthy until this is resolved.",
+            "no figure below is trustworthy until this is resolved.",
             icon="🚨",
         )
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "": ""
-                    if c.severity is checks.Severity.INFO
-                    else ("ok" if c.passed else "FAIL"),
-                    "Severity": c.severity.value,
-                    "Check": c.name,
-                    "Detail": c.detail,
-                }
-                for c in report_checks.checks
-            ]
-        ),
-        width="stretch",
-        hide_index=True,
-    )
+        st.dataframe(table, width="stretch", hide_index=True)
 
 
 #: A slice needs both to be worth its own cumulative curve. Turnover alone
 #: lets a handful of huge bets in; bet count alone lets a long tail of tiny
 #: ones in. Requiring both keeps the grid to the segments that actually have a
 #: history to show.
-SMALL_MULTIPLE_MIN_TURNOVER = 10_000.0
+SMALL_MULTIPLE_MIN_TURNOVER = 350.0  # units; roughly 0.3% of lifetime turnover
 SMALL_MULTIPLE_MIN_BETS = 2_000
 
 
@@ -384,8 +386,10 @@ SORTS: dict[str, tuple[str, bool]] = {
     "Name": ("slice", True),
 }
 
-STAKE_BINS = [0, 5, 10, 15, 25, 50, 100, float("inf")]
-STAKE_LABELS = ["<5", "5-10", "10-15", "15-25", "25-50", "50-100", "100+"]
+#: In units, where 1 is the typical stake: a quarter of matched rows sit
+#: below 0.5, half below 1, nine in ten below 3.5.
+STAKE_BINS = [0, 0.5, 1, 2, 3, 5, 10, float("inf")]
+STAKE_LABELS = ["<0.5", "0.5-1", "1-2", "2-3", "3-5", "5-10", "10+"]
 
 @st.cache_data(show_spinner=False)
 def _with_dimensions(frame: pd.DataFrame) -> pd.DataFrame:
@@ -413,7 +417,6 @@ def _aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     grouped = (
         frame.groupby(column, observed=True, dropna=False)
         .agg(
-            rows=("turnover", "size"),
             bets=("n_bets", "sum"),
             fixtures=("fixture_id", "nunique"),
             turnover=("turnover", "sum"),
@@ -441,16 +444,7 @@ def _aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     # beside the fixture count it is derived from, not wherever it happened to
     # be computed.
     return grouped[
-        [
-            "slice",
-            "rows",
-            "bets",
-            "fixtures",
-            "bets_per_fixture",
-            "turnover",
-            "pl",
-            "roi_pct",
-        ]
+        ["slice", "bets", "fixtures", "bets_per_fixture", "turnover", "pl", "roi_pct"]
     ]
 
 
@@ -458,7 +452,6 @@ def slice_columns(dim_label: str, code: str) -> dict:
     """Display config for an :func:`_aggregate` table. Shared by both views."""
     return {
         "slice": st.column_config.TextColumn(dim_label),
-        "rows": None,
         "bets": st.column_config.NumberColumn("Bets", format="%d"),
         "fixtures": st.column_config.NumberColumn("Fixtures", format="%d"),
         "bets_per_fixture": st.column_config.NumberColumn(
@@ -503,72 +496,73 @@ st.caption(
     "The rejections are the content."
 )
 
-raw_dir = st.sidebar.text_input("Raw data directory", str(loader.DEFAULT_RAW_DIR))
-
+# The app reads data/processed/ only: the exports rescaled to notional units
+# by ``python src/loader.py``, with the unit itself kept off disk. The raw EUR
+# files never need to be where the app runs, and there is no toggle that could
+# show them (CLAUDE.md -> Privacy).
 try:
-    df = _load(raw_dir)
-except FileNotFoundError as exc:
-    st.warning(str(exc))
+    df = _load(str(loader.DEFAULT_PROCESSED_DIR))
+except FileNotFoundError:
+    st.warning(
+        "No processed data. On the machine that holds the raw exports, run "
+        "`python src/loader.py` to write `data/processed/` in units, then "
+        "deploy that directory.",
+        icon="📄",
+    )
     st.stop()
-
-# An upload the user has explicitly opted to merge (Upload tab). Read before
-# the tabs render, because it has to reach every figure below — and announced
-# in the sidebar, because it moves numbers the README quotes as fixed.
-UPLOADED = st.session_state.get("uploaded")
-MERGED = UPLOADED is not None and st.session_state.get("merge_upload", False)
-if MERGED:
-    df = pd.concat([df, UPLOADED], ignore_index=True)
 
 matched = loader.matched(df)
 report = loader.describe(df)
 CUR = currency_code(df)
 
-if MERGED:
-    st.sidebar.warning(
-        f"`{UPLOADED['source_file'].iloc[0]}` is merged into every figure in "
-        "this session. The documented baseline no longer applies.",
-        icon="⚠️",
-    )
+# The integrity battery runs on every load but only makes noise when it has
+# something to say. Green checks are a footnote at the end of Overview; a
+# failed one is a banner above every tab, because no figure below it can be
+# trusted.
+INTEGRITY = checks.run_checks(df)
+if not INTEGRITY.ok:
+    render_checks(INTEGRITY)
 
-st.sidebar.metric("Rows", f"{report.n_rows:,}")
-st.sidebar.metric("Bets", f"{report.n_bets:,}")
-st.sidebar.metric("Fixtures", f"{report.n_fixtures:,}")
-st.sidebar.metric("Fill rate", f"{loader.fill_rate(df):.1%}")
-
-overview, upload, explore, method, findings = st.tabs(
-    ["Overview", "Upload", "Explore", "Method status", "Findings"]
+overview, upload, explore, findings = st.tabs(
+    ["Overview", "Upload", "Explore", "Findings"]
 )
 
 with overview:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(f"Matched turnover ({CUR})", money(matched["turnover"].sum(), CUR))
     c2.metric(f"P/L ({CUR})", money(matched["pl"].sum(), CUR, signed=True))
-    c3.metric("Unmatched rows", f"{report.n_unmatched_rows:,}")
+    c3.metric("Fill rate", f"{loader.fill_rate(df):.1%}")
     c4.metric("Price-adj. turnover present", f"{report.price_adjusted_coverage:.1%}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rows", f"{report.n_rows:,}")
+    c2.metric("Bets", f"{report.n_bets:,}")
+    c3.metric("Fixtures", f"{report.n_fixtures:,}")
+    c4.metric("Unmatched rows", f"{report.n_unmatched_rows:,}")
     st.caption(
         "Point estimates only — an interval requires `stats.py`. "
-        "Unmatched rows (turnover = 0) are excluded above. The last metric is "
-        "column presence (2025 onwards), **not** exact-odds coverage: splitting "
-        "exact from censored needs `odds.py`."
+        "Unmatched rows (turnover = 0) are excluded from turnover and P/L. "
+        "Price-adj. turnover is column presence (2025 onwards), **not** "
+        "exact-odds coverage: splitting exact from censored needs `odds.py`."
     )
 
     st.subheader(f":blue[Cumulative P/L by month ({CUR})]")
     st.altair_chart(style_chart(cumulative_chart(matched, CUR)), width="stretch")
 
+    if INTEGRITY.ok:
+        render_checks(INTEGRITY)
+
 with upload:
     st.subheader(":blue[Check a new export]")
     st.caption(
-        "Run a freshly downloaded CSV through the same loader and the same "
-        "integrity battery the five archived exports pass, and see it on its "
-        "own before it joins anything. **Descriptive only** — one file is a "
-        "look at what happened, not evidence about what works."
+        "Run a Sportmarket Pro CSV — yours or anyone's — through the same "
+        "loader and the same integrity battery the archived exports pass, and "
+        "see it on its own. It never joins the main dataset. **Descriptive "
+        "only** — one file is a look at what happened, not evidence about "
+        "what works."
     )
 
     file = st.file_uploader("Sportmarket Pro export (CSV)", type="csv")
     if file is None:
-        # Forget the previous upload, so an unticked-then-recleared file cannot
-        # keep quietly feeding the merge above.
-        st.session_state.pop("uploaded", None)
         st.info("No file loaded.", icon="📄")
     else:
         try:
@@ -579,10 +573,42 @@ with upload:
             st.error(str(exc), icon="🚨")
 
     if file is not None and new is not None:
-        st.session_state["uploaded"] = new
+        render_checks(checks.run_checks(new))
+        # The uploader chooses how to see their own money. Units by default,
+        # like the rest of the app; the currency view shows the file's amounts
+        # as they are, labelled with the currency the file says it is in. No
+        # conversion happens anywhere — a different label is the viewer's call.
+        file_cur = currency_code(new)
+        options = [c for c in DISPLAY_CURRENCIES if c != file_cur]
+        if file_cur != "units":
+            options.insert(0, file_cur)
+        d1, d2, d3 = st.columns(3)
+        display = d1.radio(
+            "Show amounts in", ["Units", "Currency"], horizontal=True
+        )
+        chosen_cur = d2.selectbox(
+            "Currency",
+            options,
+            help=(
+                "Pre-filled from the file's `Customer currency` column when it "
+                "has one. Nothing is converted: pick what the file is in."
+            ),
+        )
+        unit = d3.number_input(
+            f"1 unit = ({chosen_cur})",
+            min_value=0.01,
+            value=round(loader.typical_stake(new), 2),
+            step=1.0,
+            help="Median matched stake in this file by default.",
+            disabled=display != "Units",
+        )
+        if display == "Units":
+            new = loader.to_units(new, unit)
+            new_cur = "units"
+        else:
+            new_cur = chosen_cur
         new_matched = loader.matched(new)
         new_report = loader.describe(new)
-        new_cur = currency_code(new)
 
         u1, u2, u3, u4 = st.columns(4)
         u1.metric(
@@ -634,30 +660,10 @@ with upload:
             "it. Nothing on this tab has an interval or an out-of-sample check."
         )
 
-        st.checkbox(
-            "Include this file in the main dataset for this session",
-            key="merge_upload",
-            help=(
-                "Off by default. Merging changes every figure in the other "
-                "tabs, including the baseline the README quotes. If these rows "
-                "already exist in data/raw/, the duplicate check on the Method "
-                "status tab is what will say so."
-            ),
-        )
 
 
 with explore:
     st.subheader(":blue[Segment explorer]")
-    st.caption(
-        "Group matched bets by any dimension and compare. **Point estimates "
-        "only** — no confidence intervals, no multiple-comparison correction, "
-        "no out-of-sample check. ROI is **turnover-weighted** — total P/L over "
-        "total turnover, the same quantity the export's own ROI column measures "
-        "per row. `fixtures` and `bets / fixture` are the two "
-        "columns that hint at whether a slice is large enough to mean anything, "
-        "and both are plain arithmetic. A good-looking slice here is not "
-        "evidence until `validate.py` says so."
-    )
 
     frame = _with_dimensions(matched)
 
@@ -675,13 +681,13 @@ with explore:
         # the filter starts out excluding nothing.
         stake_ceiling = float(math.ceil(frame["stake"].max()))
         min_stake = fc2.number_input(
-            f"Minimum stake ({CUR})", min_value=0.0, value=0.0, step=5.0
+            f"Minimum stake ({CUR})", min_value=0.0, value=0.0, step=0.5
         )
         max_stake = fc3.number_input(
             f"Maximum stake ({CUR})",
             min_value=0.0,
             value=stake_ceiling,
-            step=5.0,
+            step=0.5,
             help=(
                 f"Defaults to the largest stake in the data ({stake_ceiling:,.0f}), "
                 "so it starts out excluding nothing."
@@ -916,31 +922,6 @@ with explore:
                 "a change in form."
             )
 
-with method:
-    st.subheader(":blue[Data integrity]")
-    render_checks(df)
-    st.caption(
-        "Verified against the real exports, then written down so a future "
-        "export that breaks an assumption says so instead of going unnoticed. "
-        "`checks.py` reports; it never repairs."
-    )
-
-    st.subheader(":blue[Module status]")
-    modules = {
-        "loader.py": "Written — loading, normalisation, fixture ids, fill rate.",
-        "checks.py": "Written — data-integrity battery, reported above.",
-        "odds.py": "Owner. Censoring-aware implied odds.",
-        "features.py": "Owner. both_sides_flag, n_bets_on_position, is_under.",
-        "stats.py": "Owner. Clustered bootstrap, intervals, adequacy.",
-        "validate.py": "Grey area. Interface sketched, not agreed.",
-    }
-    for name, note in modules.items():
-        mark = "✅" if name in ("loader.py", "checks.py") else "⬜"
-        st.write(f"{mark} `{name}` — {note}")
-
-    pending("stats", "Baseline ROI with clustered CI")
-    pending("validate", "Segmentation battery (REPLICATES / INSUFFICIENT / NOISE)")
-
 with findings:
     st.subheader(":blue[Candidate patterns]")
     st.table(
@@ -967,4 +948,9 @@ with findings:
         "from the same battery, and every verdict is reported, including the "
         "rejections."
     )
-    pending("validate", "Verdicts per candidate")
+    st.info(
+        "**Verdicts per candidate** need `src/validate.py`, which is the repo "
+        "owner's to write (CLAUDE.md → Division of labour). The panel appears "
+        "once it lands.",
+        icon="🚧",
+    )

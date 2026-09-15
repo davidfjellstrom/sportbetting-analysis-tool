@@ -71,3 +71,42 @@ def test_describe_counts_bets_not_rows(df):
 def test_empty_raw_dir_raises_with_a_useful_message(tmp_path):
     with pytest.raises(FileNotFoundError, match="gitignored"):
         loader.load_raw(tmp_path)
+
+
+def test_to_units_scales_money_only_and_relabels_currency(df):
+    out = loader.to_units(df, 10.0)
+    for col in loader.MONEY_COLUMNS:
+        pd.testing.assert_series_equal(out[col], df[col] / 10.0, check_names=False)
+    assert out["roi"].equals(df["roi"])
+    assert out["n_bets"].equals(df["n_bets"])
+    assert set(out["currency"].dropna().unique()) == {"units"}
+
+
+def test_to_units_rejects_non_positive_unit(df):
+    with pytest.raises(ValueError):
+        loader.to_units(df, 0)
+
+
+def test_write_units_output_reloads_through_the_same_pipeline(raw_dir, tmp_path):
+    out_dir = tmp_path / "processed"
+    unit = loader.write_units(raw_dir, out_dir)
+    raw = loader.load_raw(raw_dir)
+    assert unit == loader.typical_stake(raw)
+
+    proc = loader.load_raw(out_dir)
+    assert len(proc) == len(raw)
+    assert set(proc["currency"].dropna().unique()) == {"units"}
+    # Scale-invariant quantities survive untouched; money is divided by unit.
+    assert proc["roi"].equals(raw["roi"])
+    assert proc["fixture_id"].equals(raw["fixture_id"])
+    assert loader.fill_rate(proc) == pytest.approx(loader.fill_rate(raw))
+    pd.testing.assert_series_equal(
+        proc["turnover"], raw["turnover"] / unit, check_names=False
+    )
+    # Absent stays absent: the legacy file has no price-adjusted column.
+    assert proc["price_adjusted_turnover"].isna().sum() == (
+        raw["price_adjusted_turnover"].isna().sum()
+    )
+    # The unit is nowhere in the output.
+    for path in out_dir.glob("*.csv"):
+        assert f"{unit}" not in path.read_text()
