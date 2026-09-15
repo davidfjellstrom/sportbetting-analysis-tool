@@ -20,13 +20,21 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,app]"
 cp /path/to/exports/*.csv data/raw/   # never committed
 pytest -m "not owner"                 # tests for the modules that exist today
+python src/loader.py                  # data/raw/ -> data/processed/, in units
 streamlit run app/streamlit_app.py
 ```
+
+The app reads `data/processed/` only — the exports with every amount divided
+by one constant (the median stake by default; `--unit` overrides) and the
+currency relabelled `units`. The constant is printed once and stored nowhere,
+so the processed files can be deployed without the raw ones. ROI, fill rate
+and every integrity check are scale-free and come out identical.
 
 ## Layout
 
 ```
 data/raw/            Yearly CSV exports. Gitignored, always.
+data/processed/      The same exports in units. What the app reads. Gitignored.
 src/loader.py        CSV -> tidy frame. Normalisation, fixture ids, fill rate.
 src/checks.py        Data-integrity battery. Reports, never repairs.
 src/odds.py          Censoring-aware implied odds.            (owner)
@@ -130,6 +138,9 @@ fail until the modules exist, which is the intended workflow. See `CLAUDE.md`.
 
 ## Privacy
 
-`Customer P/L` is personal financial information. `data/raw/` is gitignored. If
-this repo is ever made public, index monetary values to a base of 100 or
-rescale to a notional currency first. The method is what is on display.
+`Customer P/L` is personal financial information. `data/raw/` is gitignored,
+and the app never reads it: it shows the owner's history in notional units
+only, from `data/processed/`, with no toggle back to currency. Someone who
+uploads their own export on the Upload tab chooses units or currency for that
+file alone; it is never merged with the main dataset. The method is what is
+on display.

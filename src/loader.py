@@ -10,10 +10,17 @@ Two schema facts drive most of the code here (CLAUDE.md -> Critical facts):
 * ``stake`` is the intended stake; ``turnover`` is what actually matched.
   Rows with ``turnover == 0`` are unmatched and belong in no performance
   calculation. Use :func:`matched` to drop them, explicitly, once.
+
+The app never reads ``data/raw/``. It reads ``data/processed/``, which holds
+the same exports with every amount divided by one constant and the currency
+relabelled ``units`` (CLAUDE.md -> Privacy). :func:`write_units` produces it;
+``python src/loader.py`` runs that from the shell. The constant is printed to
+the terminal and written nowhere, so the processed files cannot be scaled back.
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +28,7 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RAW_DIR = REPO_ROOT / "data" / "raw"
+DEFAULT_PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
 #: Source header -> internal snake_case name.
 COLUMN_MAP: dict[str, str] = {
@@ -84,6 +92,10 @@ CATEGORICAL_COLUMNS: tuple[str, ...] = (
     "bookie",
 )
 
+#: Monetary columns, the only ones a change of unit may touch. ``roi`` is a
+#: ratio and ``n_bets`` a count; scaling either would be a bug.
+MONEY_COLUMNS: tuple[str, ...] = ("stake", "turnover", "pl", "price_adjusted_turnover")
+
 #: The clustering unit for every standard error in this repo (CLAUDE.md rule 1).
 FIXTURE_KEY: tuple[str, ...] = ("event", "event_day")
 
@@ -110,7 +122,6 @@ class LoadReport:
     turnover: float
     date_min: pd.Timestamp | None
     date_max: pd.Timestamp | None
-    has_price_adjusted_turnover: bool
     price_adjusted_coverage: float
 
     def __str__(self) -> str:  # pragma: no cover - presentation only
@@ -287,6 +298,92 @@ def describe(df: pd.DataFrame, files: tuple[str, ...] = ()) -> LoadReport:
         turnover=float(df["turnover"].fillna(0).sum()),
         date_min=df["event_day"].min() if len(df) else None,
         date_max=df["event_day"].max() if len(df) else None,
-        has_price_adjusted_turnover="price_adjusted_turnover" in df.columns,
         price_adjusted_coverage=pat_coverage,
     )
+
+
+def to_units(df: pd.DataFrame, unit: float) -> pd.DataFrame:
+    """Express every amount of a tidy frame in notional units of ``unit`` each.
+
+    Dividing every monetary column by one constant leaves ROI, fill rate, the
+    odds ratio and every integrity check untouched, so nothing downstream has
+    to know. The currency column is relabelled so the label cannot lie.
+    """
+    if not unit > 0:
+        raise ValueError("unit must be positive")
+    out = df.copy()
+    for col in MONEY_COLUMNS:
+        if col in out.columns:
+            out[col] = out[col] / unit
+    if "currency" in out.columns:
+        out["currency"] = "units"
+    return out
+
+
+def typical_stake(df: pd.DataFrame) -> float:
+    """Median matched stake: the default unit, so "1 unit" reads as one bet."""
+    return float(matched(df)["turnover"].median())
+
+
+def write_units(
+    raw_dir: str | Path = DEFAULT_RAW_DIR,
+    out_dir: str | Path = DEFAULT_PROCESSED_DIR,
+    unit: float | None = None,
+) -> float:
+    """Rewrite every export in ``raw_dir`` into ``out_dir`` in units.
+
+    The output keeps the export's own headers and every non-monetary column
+    byte for byte, so the processed files go through the same loader, the same
+    checks and the same upload path as a raw export would. Only the four money
+    columns change, and ``Customer currency`` becomes ``units``.
+
+    ``unit`` defaults to :func:`typical_stake` of the raw data. It is returned
+    so the caller can see it; it is never written to ``out_dir``.
+    """
+    raw_dir, out_dir = Path(raw_dir), Path(out_dir)
+    paths = sorted(p for p in raw_dir.glob("*.csv") if p.is_file())
+    if not paths:
+        raise FileNotFoundError(f"No *.csv in {raw_dir}")
+    if unit is None:
+        unit = typical_stake(load_raw(raw_dir))
+    if not unit > 0:
+        raise ValueError("unit must be positive")
+
+    tidy_to_raw = {v: k for k, v in COLUMN_MAP.items()}
+    money_headers = {tidy_to_raw[c] for c in MONEY_COLUMNS}
+    currency_header = tidy_to_raw["currency"]
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        # Everything as text so untouched columns survive unchanged; blanks
+        # and "n/a" in the money columns come back out as blanks, which the
+        # loader already reads as missing.
+        raw = pd.read_csv(path, dtype=str, keep_default_na=False)
+        for col in raw.columns:
+            if col.strip() in money_headers:
+                raw[col] = pd.to_numeric(raw[col], errors="coerce") / unit
+            elif col.strip() == currency_header:
+                raw[col] = "units"
+        raw.to_csv(out_dir / path.name, index=False)
+    return unit
+
+
+def _main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Rewrite data/raw/ into data/processed/ in notional units."
+    )
+    parser.add_argument("--raw", default=DEFAULT_RAW_DIR, help="raw export dir")
+    parser.add_argument("--out", default=DEFAULT_PROCESSED_DIR, help="output dir")
+    parser.add_argument(
+        "--unit",
+        type=float,
+        default=None,
+        help="what one unit is, in the exports' currency (default: median stake)",
+    )
+    args = parser.parse_args(argv)
+    unit = write_units(args.raw, args.out, args.unit)
+    print(f"1 unit = {unit:.2f}. Written to {args.out}; the unit is not stored.")
+
+
+if __name__ == "__main__":
+    _main()
