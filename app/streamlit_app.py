@@ -314,11 +314,11 @@ def render_checks(report_checks: checks.CheckReport) -> None:
             + (f", {n_warn} warning(s)" if n_warn else "")
         ):
             st.dataframe(table, width="stretch", hide_index=True)
-            st.caption("`checks.py` reports; it never repairs.")
+            st.caption("Problems are reported, never fixed automatically.")
     else:
         st.error(
-            f"{len(report_checks.errors)} integrity check(s) failed — "
-            "no figure below is trustworthy until this is resolved.",
+            f"{len(report_checks.errors)} data check(s) failed — the numbers "
+            "below cannot be trusted until this is fixed.",
             icon="🚨",
         )
         st.dataframe(table, width="stretch", hide_index=True)
@@ -381,8 +381,8 @@ SORTS: dict[str, tuple[str, bool]] = {
     "ROI (best first)": ("roi_pct", False),
     "ROI (worst first)": ("roi_pct", True),
     "P/L (largest first)": ("pl", False),
-    "Fixtures (most first)": ("fixtures", False),
-    "Bets per fixture (most first)": ("bets_per_fixture", False),
+    "Matches (most first)": ("fixtures", False),
+    "Bets per match (most first)": ("bets_per_fixture", False),
     "Name": ("slice", True),
 }
 
@@ -453,15 +453,14 @@ def slice_columns(dim_label: str, code: str) -> dict:
     return {
         "slice": st.column_config.TextColumn(dim_label),
         "bets": st.column_config.NumberColumn("Bets", format="%d"),
-        "fixtures": st.column_config.NumberColumn("Fixtures", format="%d"),
+        "fixtures": st.column_config.NumberColumn("Matches", format="%d"),
         "bets_per_fixture": st.column_config.NumberColumn(
-            "Bets / fixture",
+            "Bets / match",
             format="%.2f",
             help=(
-                "How many bets sit on the average fixture in this slice. "
-                "Bets on one fixture win or lose together, so a high number "
-                "means the slice carries less independent information than "
-                "its bet count suggests."
+                "Average number of bets per match. Bets on the same match tend "
+                "to win or lose together, so a high number means the group "
+                "has less to say than its bet count suggests."
             ),
         ),
         "turnover": st.column_config.NumberColumn(
@@ -473,7 +472,7 @@ def slice_columns(dim_label: str, code: str) -> dict:
         "roi_pct": st.column_config.NumberColumn(
             "ROI %",
             format="%+.2f%%",
-            help="Turnover-weighted: sum(P/L) / sum(turnover)",
+            help="Profit or loss as a share of the amount staked.",
         ),
     }
 
@@ -527,11 +526,11 @@ with overview:
     c1.metric(f"Matched turnover ({CUR})", money(matched["turnover"].sum(), CUR))
     c2.metric(f"P/L ({CUR})", money(matched["pl"].sum(), CUR, signed=True))
     c3.metric("Fill rate", f"{loader.fill_rate(df):.1%}")
-    c4.metric("Price-adj. turnover present", f"{report.price_adjusted_coverage:.1%}")
+    c4.metric("Rows with odds info", f"{report.price_adjusted_coverage:.1%}")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Rows", f"{report.n_rows:,}")
     c2.metric("Bets", f"{report.n_bets:,}")
-    c3.metric("Fixtures", f"{report.n_fixtures:,}")
+    c3.metric("Matches", f"{report.n_fixtures:,}")
     c4.metric("Unmatched rows", f"{report.n_unmatched_rows:,}")
 
     st.subheader(f":blue[Cumulative P/L by month ({CUR})]")
@@ -540,11 +539,9 @@ with overview:
 with upload:
     st.subheader(":blue[Check a new export]")
     st.caption(
-        "Run a Sportmarket Pro CSV — yours or anyone's — through the same "
-        "loader and the same integrity battery the archived exports pass, and "
-        "see it on its own. It never joins the main dataset. **Descriptive "
-        "only** — one file is a look at what happened, not evidence about "
-        "what works."
+        "Upload your own Sportmarket Pro export to see how it went. The file "
+        "is checked, shown on its own and never added to the main dataset. "
+        "One file shows what happened — it cannot tell you what works."
     )
 
     file = st.file_uploader("Sportmarket Pro export (CSV)", type="csv")
@@ -576,8 +573,8 @@ with upload:
             "Currency",
             options,
             help=(
-                "Pre-filled from the file's `Customer currency` column when it "
-                "has one. Nothing is converted: pick what the file is in."
+                "The currency your file is in. Taken from the file when it "
+                "says so. Nothing is converted."
             ),
         )
         unit = d3.number_input(
@@ -585,7 +582,7 @@ with upload:
             min_value=0.01,
             value=round(loader.typical_stake(new), 2),
             step=1.0,
-            help="Median matched stake in this file by default.",
+            help="Your typical stake in this file, unless you set another.",
             disabled=display != "Units",
         )
         if display == "Units":
@@ -606,14 +603,13 @@ with upload:
             money(new_matched["pl"].sum(), new_cur, signed=True),
         )
         u3.metric("Bets", f"{new_report.n_bets:,}")
-        u4.metric("Fixtures", f"{new_report.n_fixtures:,}")
+        u4.metric("Matches", f"{new_report.n_fixtures:,}")
         st.caption(
             f"{new_report.n_rows:,} rows, "
-            f"{new_report.date_min:%Y-%m-%d} .. {new_report.date_max:%Y-%m-%d}. "
-            f"{new_report.n_unmatched_rows:,} unmatched row(s) "
-            f"({new_report.unmatched_row_share:.1%}) excluded from the figures "
-            "above. Price-adjusted turnover present on "
-            f"{new_report.price_adjusted_coverage:.1%} of rows."
+            f"{new_report.date_min:%Y-%m-%d} to {new_report.date_max:%Y-%m-%d}. "
+            f"{new_report.n_unmatched_rows:,} row(s) "
+            f"({new_report.unmatched_row_share:.1%}) never got matched and are "
+            "left out of the figures above."
         )
 
         st.subheader(f":blue[How this file ran ({new_cur})]")
@@ -624,10 +620,8 @@ with upload:
             style_chart(pl_bars_chart(new_matched, new_cur)), width="stretch"
         )
         st.caption(
-            "Bucketed by day when the export covers less than a quarter, by "
-            "month when it covers more. A week of fixtures is a handful of "
-            "buckets, so the run of good and bad days is the whole picture — "
-            "and a run that short is what a coin flip looks like too."
+            "Shown per day for short files, per month for longer ones. A few "
+            "good or bad days in a row is normal — a coin flip does the same."
         )
 
         st.subheader(":blue[Breakdown]")
@@ -641,9 +635,8 @@ with upload:
             column_config=slice_columns(upload_dim, new_cur),
         )
         st.caption(
-            "A single export covers months, not years, so every slice here is "
-            "thin — read the `fixtures` column before reading the ROI beside "
-            "it. Nothing on this tab has an interval or an out-of-sample check."
+            "One file covers a short period, so each group is small. Check "
+            "the number of matches before reading anything into the ROI."
         )
 
 
@@ -658,7 +651,7 @@ with explore:
         day_min = frame["event_day"].min().date()
         day_max = frame["event_day"].max().date()
         span = fc1.date_input(
-            "Fixture date range",
+            "Match date range",
             (day_min, day_max),
             min_value=day_min,
             max_value=day_max,
@@ -674,10 +667,7 @@ with explore:
             min_value=0.0,
             value=stake_ceiling,
             step=0.5,
-            help=(
-                f"Defaults to the largest stake in the data ({stake_ceiling:,.0f}), "
-                "so it starts out excluding nothing."
-            ),
+            help=f"Starts at the largest stake in the data ({stake_ceiling:,.0f}).",
         )
         fc4, fc5 = st.columns(2)
         pick_types = fc4.multiselect(
@@ -715,7 +705,7 @@ with explore:
     gc1, gc2, gc3 = st.columns([2, 2, 1])
     dim_label = gc1.selectbox("Group by", list(DIMENSIONS))
     sort_label = gc2.selectbox("Sort by", list(SORTS))
-    min_fixtures = gc3.number_input("Min fixtures", min_value=0, value=0, step=25)
+    min_fixtures = gc3.number_input("Min. matches", min_value=0, value=0, step=25)
 
     table_all = _aggregate(frame, DIMENSIONS[dim_label])
     table = table_all
@@ -731,7 +721,7 @@ with explore:
     view_roi = 100 * frame["pl"].sum() / frame["turnover"].sum()
     m3.metric("ROI in view", f"{view_roi:+.2f}%")
     m4.metric("Bets in view", f"{int(frame['n_bets'].sum()):,}")
-    m5.metric("Slices shown", f"{len(table)} of {n_before}")
+    m5.metric("Groups shown", f"{len(table)} of {n_before}")
 
     st.dataframe(
         table,
@@ -740,13 +730,12 @@ with explore:
         column_config=slice_columns(dim_label, CUR),
     )
     st.caption(
-        f"{n_before} slice(s) before the fixture filter. Scanning that many at "
-        "the 95% level produces roughly "
-        f"{0.05 * n_before:.1f} false positives by construction — which is why "
-        "the number is printed here rather than left for you to remember."
+        f"{n_before} groups in total. With that many, about "
+        f"{0.05 * n_before:.1f} would look good by pure chance — so a group "
+        "standing out is not proof of anything on its own."
     )
 
-    top_n = st.slider("Slices to chart (by turnover)", 3, 40, 12)
+    top_n = st.slider("Groups to chart (largest first)", 3, 40, 12)
     chart_data = table.nlargest(min(top_n, len(table)), "turnover").copy()
     chart_data["direction"] = [
         "Profit" if v >= 0 else "Loss" for v in chart_data["pl"]
@@ -776,7 +765,7 @@ with explore:
                 alt.Tooltip("roi_pct:Q", title="ROI %", format="+.2f"),
                 alt.Tooltip("turnover:Q", title=f"Turnover ({CUR})", format=",.0f"),
                 alt.Tooltip("pl:Q", title=f"P/L ({CUR})", format="+,.0f"),
-                alt.Tooltip("fixtures:Q", title="Fixtures", format=","),
+                alt.Tooltip("fixtures:Q", title="Matches", format=","),
                 alt.Tooltip("bets:Q", title="Bets", format=","),
             ],
         )
@@ -800,40 +789,39 @@ with explore:
 
     if worth_a_curve.empty:
         st.info(
-            "No slice in this grouping clears both thresholds "
-            f"({SMALL_MULTIPLE_MIN_TURNOVER:,.0f} turnover and "
-            f"{SMALL_MULTIPLE_MIN_BETS:,} bets). Try a coarser dimension, "
-            "or widen the filters.",
+            "No group here is big enough to chart (at least "
+            f"{SMALL_MULTIPLE_MIN_TURNOVER:,.0f} units staked and "
+            f"{SMALL_MULTIPLE_MIN_BETS:,} bets). Try another grouping or "
+            "wider filters.",
             icon="🔍",
         )
     else:
         eligible = list(worth_a_curve["slice"])
         pc1, pc2 = st.columns([3, 1])
         picked = pc1.multiselect(
-            "Segments to plot",
+            "Groups to compare",
             eligible,
             default=eligible[:3],
             max_selections=MAX_SERIES,
             help=(
-                f"Slices with at least {SMALL_MULTIPLE_MIN_TURNOVER:,.0f} turnover "
-                f"and {SMALL_MULTIPLE_MIN_BETS:,} bets — "
-                f"{len(eligible)} of {len(table_all)} in this grouping. "
-                f"Capped at {MAX_SERIES}: past that, no colour ordering stays "
-                "distinguishable under colour blindness."
+                f"Only groups with at least {SMALL_MULTIPLE_MIN_TURNOVER:,.0f} "
+                f"units staked and {SMALL_MULTIPLE_MIN_BETS:,} bets are "
+                f"listed ({len(eligible)} of {len(table_all)}). "
+                f"Up to {MAX_SERIES} at a time so the colours stay apart."
             ),
         )
         measure = pc2.radio(
             "Measure",
             [f"Cumulative P/L ({CUR})", "Cumulative ROI %"],
             help=(
-                "P/L reads naturally but rewards size — a big segment climbs "
-                "higher just by being big. ROI puts every segment on one axis "
-                "and compares form instead of volume."
+                "P/L favours big groups — more bets, more profit. ROI shows "
+                "the return on what was staked, so groups of any size can be "
+                "compared."
             ),
         )
 
         if not picked:
-            st.info("Pick at least one segment.", icon="👆")
+            st.info("Pick at least one group.", icon="👆")
         else:
             field = "cum_pl" if measure.startswith("Cumulative P/L") else "cum_roi_pct"
             fmt = "+,.0f" if field == "cum_pl" else "+.2f"
@@ -903,9 +891,8 @@ with explore:
                 width="stretch",
             )
             st.caption(
-                "Early months swing hard on the ROI measure because the "
-                "denominator is still small — that is sample size showing, not "
-                "a change in form."
+                "ROI swings a lot in the first months, when only a few bets "
+                "have been placed. That settles as the bets add up."
             )
 
 with findings:
@@ -930,13 +917,9 @@ with findings:
         )
     )
     st.caption(
-        "Every candidate gets a verdict — REPLICATES / INSUFFICIENT / NOISE — "
-        "from the same battery, and every verdict is reported, including the "
-        "rejections."
+        "Each idea gets one of three verdicts: it holds up, there is too "
+        "little data to tell, or it is just noise. All verdicts are shown, "
+        "including the failures."
     )
-    st.info(
-        "**Verdicts per candidate** need `src/validate.py`, which is the repo "
-        "owner's to write (CLAUDE.md → Division of labour). The panel appears "
-        "once it lands.",
-        icon="🚧",
-    )
+    st.info("The tests are not written yet. Verdicts appear here once they are.",
+            icon="🚧")
