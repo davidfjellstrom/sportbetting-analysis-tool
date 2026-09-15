@@ -491,10 +491,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.title("Sportmarket analysis")
-st.caption(
-    "Candidate patterns, one battery, every verdict reported. "
-    "The rejections are the content."
-)
 
 # The app reads data/processed/ only: the exports rescaled to notional units
 # by ``python src/loader.py``, with the unit itself kept off disk. The raw EUR
@@ -515,10 +511,9 @@ matched = loader.matched(df)
 report = loader.describe(df)
 CUR = currency_code(df)
 
-# The integrity battery runs on every load but only makes noise when it has
-# something to say. Green checks are a footnote at the end of Overview; a
-# failed one is a banner above every tab, because no figure below it can be
-# trusted.
+# The integrity battery runs on every load and only makes noise when it has
+# something to say: a failed check is a banner above every tab, because no
+# figure below it can be trusted. Green checks are silent.
 INTEGRITY = checks.run_checks(df)
 if not INTEGRITY.ok:
     render_checks(INTEGRITY)
@@ -538,18 +533,9 @@ with overview:
     c2.metric("Bets", f"{report.n_bets:,}")
     c3.metric("Fixtures", f"{report.n_fixtures:,}")
     c4.metric("Unmatched rows", f"{report.n_unmatched_rows:,}")
-    st.caption(
-        "Point estimates only — an interval requires `stats.py`. "
-        "Unmatched rows (turnover = 0) are excluded from turnover and P/L. "
-        "Price-adj. turnover is column presence (2025 onwards), **not** "
-        "exact-odds coverage: splitting exact from censored needs `odds.py`."
-    )
 
     st.subheader(f":blue[Cumulative P/L by month ({CUR})]")
     st.altair_chart(style_chart(cumulative_chart(matched, CUR)), width="stretch")
-
-    if INTEGRITY.ok:
-        render_checks(INTEGRITY)
 
 with upload:
     st.subheader(":blue[Check a new export]")
