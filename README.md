@@ -1,10 +1,28 @@
-# sportmarket-analysis
+# Sportmarket analysis
 
-A tool for analysing Sportmarket Pro betting exports: load them, check them,
-explore performance by segment, and put candidate patterns through a skeptic
-battery before calling any of them an edge.
+You have placed thousands of bets. Do you know which of them actually made
+money?
 
-It runs on two kinds of input:
+Sportmarket Pro lets you export your full history, but a spreadsheet with
+70,000 rows tells you nothing. This app reads that export and shows you what
+happened: how your profit grew over time, which markets, leagues and bookmakers
+you win on, whether your big bets do better than your small ones, and where the
+losses come from.
+
+Upload your own export and get the same view of your own betting in seconds.
+Nothing is stored — the file lives in your browser session and is gone when you
+close it.
+
+What makes it different: it is built to be skeptical. Bets on the same match
+win or lose together, a hot league is usually just a lucky month, and if you
+compare twenty countries one of them will look brilliant by chance. Most
+betting stats ignore that.
+
+**Try it:** _link coming once the app is deployed_
+
+## How it works
+
+The app runs on two kinds of input:
 
 - **A history.** Whatever exports are in `data/processed/` — for this repo, four
   years of the owner's own betting (Nov 2022 – Sep 2026), rescaled to notional
@@ -18,7 +36,7 @@ computed from the files currently under `data/`, by the code in `src/`, with the
 uncertainty the statistical rules below require. Nothing is quoted from a
 previous run.
 
-## Quickstart
+### Quickstart
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -36,10 +54,9 @@ the raw amounts, and the raw files do not need to be on the machine the app runs
 on — see [Units](#units). Skipping `python src/loader.py` leaves the app with
 nothing to load, and it says so instead of falling back to `data/raw/`.
 
-## The app
+### The app
 
-Four tabs over the modules in `src/`. A panel backed by a module that is not
-written yet says so rather than inventing a number.
+Three tabs over the modules in `src/`.
 
 **Overview** — what is loaded: matched turnover, P/L, fill rate, odds coverage,
 rows, bets, fixtures, unmatched rows, and cumulative P/L over time. Bucketed by
@@ -65,17 +82,12 @@ ROI. Then a ROI bar chart of the largest slices, and a comparison of up to eight
 slices over time on one set of axes — cumulative P/L, or cumulative ROI so that
 slices of different size can be compared at all.
 
-Two things the explorer insists on. Slices are aggregated with `dropna=False`,
+One thing the explorer insists on: slices are aggregated with `dropna=False`,
 so rows carrying no `selection` form their own visible category instead of
-disappearing from every total that touches the column. And the table's caption
-states how many slices are on screen and roughly how many of them would look
-good by chance alone, so a slice standing out is never presented as a finding.
+disappearing from every total that touches the column.
 
-**Findings** — the candidate patterns, with a verdict each: it holds up, there is
-too little data to tell, or it is noise. All verdicts are listed, failures
-included. **The tests behind it are not written yet**, so every row currently
-reads *not yet tested* and the tab is a queue rather than a result. See
-[Status](#status).
+Verdicts on the candidate patterns — holds up, too little data, or noise — will
+get a tab of their own once the tests behind them exist. See [Status](#status).
 
 Chart colours come from a validated palette: the diverging pair is blue↔red
 rather than the conventional profit/loss red↔green, which is the pairing that
@@ -83,7 +95,7 @@ collapses under the commonest colour blindness. Eight categorical slots, checked
 for contrast and colour-blind separation against this surface, are the hard
 ceiling — hence the cap on the segment comparison.
 
-## Layout
+### Layout
 
 ```
 data/raw/            Exports as they come out of Sportmarket. Gitignored, always.
@@ -94,13 +106,13 @@ src/odds.py           Censoring-aware implied odds.            (owner, not writt
 src/features.py       both_sides_flag, n_bets_on_position, …   (owner, not written)
 src/stats.py          Fixture-clustered bootstrap, intervals.  (owner, not written)
 src/validate.py       The skeptic battery.                     (interface sketch)
-app/streamlit_app.py  The four tabs above.
+app/streamlit_app.py  The three tabs above.
 .streamlit/           Theme; one accent colour shared with the app's palette.
 tests/                Synthetic fixtures only; no real data.
 reports/              Generated output. Gitignored.
 ```
 
-## What the export format actually says
+### What the export format actually says
 
 Five facts that break a naive reading. The app is built around them; the checks
 make them re-runnable.
@@ -120,7 +132,7 @@ make them re-runnable.
    wholly among those rows, so filtering on completeness would silently remove
    them from the analysis. Absence is a category, not a defect.
 
-## Data integrity
+### Data integrity
 
 The facts above were established by hand once. `checks.py` makes them
 re-runnable, so an export that breaks an assumption says so instead of quietly
@@ -147,7 +159,7 @@ It **reports and never repairs** — the same stance as `loader.py`, for the sam
 reason. Nothing drops a row or fills a gap, because every silent repair turns an
 "I don't know" into a number and makes the error invisible.
 
-## The censoring problem
+### The censoring problem
 
 Price-adjusted turnover encodes odds, but only below 2.00:
 
@@ -170,7 +182,7 @@ aggregation. This derivation was reverse-engineered on an earlier export and is
 the most fragile piece of domain knowledge here; re-verify it against the
 current files before relying on it.
 
-## Statistical rules
+### Statistical rules
 
 The contract `stats.py` and `validate.py` must satisfy. They are not style
 preferences — violating them invalidates the analysis.
@@ -188,11 +200,10 @@ it shows point estimates with the fixture counts behind them and says plainly
 how many slices are on screen. A number on the Explore tab is a description of
 what happened, never a claim that it will happen again.
 
-## Candidate patterns
+### Candidate patterns
 
-The hypotheses the machinery is built to test, listed on the Findings tab. None
-has a verdict until `validate.py` runs; all of them, failures included, go in
-the report.
+The hypotheses the machinery is built to test. None has a verdict until
+`validate.py` runs; all of them, failures included, go in the report.
 
 - Behavioural: stake size, number of bets on a position, `both_sides_flag`,
   over vs under.
@@ -201,7 +212,7 @@ the report.
 - Calendar / context: day of week, month, women's vs men's football,
   friendlies, league familiarity.
 
-## Status
+### Status
 
 | Part | State |
 | --- | --- |
@@ -209,14 +220,14 @@ the report.
 | Overview, Upload, Explore | Working on real exports. |
 | `odds.py`, `features.py`, `stats.py` | Signatures and contracts only; every function raises. |
 | `validate.py` | Interface proposal, open questions in the module docstring. |
-| Findings | Queue of hypotheses; no verdicts until the above are written. |
+| Verdicts | No tab yet; the hypotheses are listed under Candidate patterns. |
 
 `tests/test_odds.py`, `test_features.py` and `test_stats.py` state the contracts
 the unwritten modules must satisfy and are marked `owner`. They fail until those
 modules exist, which is the intended workflow — `pytest -m "not owner"` is the
 suite that should be green.
 
-## Units
+### Units
 
 `Customer P/L` is personal financial information, and the app is meant to be
 runnable in front of someone. So the amounts it reads are not currency.
@@ -238,12 +249,3 @@ Both `data/raw/` and `data/processed/` are gitignored, as is `reports/`. There i
 no toggle back to currency for the loaded history; someone who uploads their own
 export chooses units or currency for that file alone, and it is held in memory
 for that session only. The method is what is on display, not the amounts.
-
-## Division of labour
-
-This repo is also a way to learn data science, so some modules are written by
-hand on purpose. `odds.py`, `features.py` and `stats.py` are the owner's —
-assistants review, suggest and point out bugs there, but do not hand over
-implementations. `validate.py` is a grey area: sketch the interface together
-first. Everything else — scaffolding, `loader.py`, `checks.py`, the app, this
-README, linting — is fair game. See `CLAUDE.md`.
