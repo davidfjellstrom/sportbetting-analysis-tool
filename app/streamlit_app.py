@@ -1,8 +1,8 @@
 """The analysis app: a thin shell over the modules in src/.
 
-It shows what is loaded, how the data checks out, performance by segment, and
-which candidate patterns are queued for testing. Panels backed by a module
-that is not written yet say so instead of inventing a number.
+It shows what is loaded, how the data checks out, and performance by segment.
+Verdicts on the candidate patterns arrive with ``validate.py``; until then the
+app makes no claim about what works.
 
 Run with:  streamlit run app/streamlit_app.py
 """
@@ -517,9 +517,7 @@ INTEGRITY = checks.run_checks(df)
 if not INTEGRITY.ok:
     render_checks(INTEGRITY)
 
-overview, upload, explore, findings = st.tabs(
-    ["Overview", "Upload", "Explore", "Findings"]
-)
+overview, upload, explore = st.tabs(["Overview", "Upload", "Explore"])
 
 with overview:
     c1, c2, c3, c4 = st.columns(4)
@@ -729,11 +727,6 @@ with explore:
         hide_index=True,
         column_config=slice_columns(dim_label, CUR),
     )
-    st.caption(
-        f"{n_before} groups in total. With that many, about "
-        f"{0.05 * n_before:.1f} would look good by pure chance — so a group "
-        "standing out is not proof of anything on its own."
-    )
 
     top_n = st.slider("Groups to chart (largest first)", 3, 40, 12)
     chart_data = table.nlargest(min(top_n, len(table)), "turnover").copy()
@@ -894,32 +887,3 @@ with explore:
                 "ROI swings a lot in the first months, when only a few bets "
                 "have been placed. That settles as the bets add up."
             )
-
-with findings:
-    st.subheader(":blue[Candidate patterns]")
-    st.table(
-        pd.DataFrame(
-            [
-                ("log(stake)", "behavioural", "not yet tested"),
-                ("n_bets_on_position ≥ 2", "behavioural", "not yet tested"),
-                ("both_sides_flag", "behavioural", "not yet tested"),
-                ("is_under", "behavioural", "not yet tested"),
-                ("Core vs novelty market types", "market", "not yet tested"),
-                ("Differences among core market types", "market", "not yet tested"),
-                ("Country", "segmentation", "not yet tested"),
-                ("Competition", "segmentation", "not yet tested"),
-                ("Bookie", "segmentation", "not yet tested"),
-                ("Day of week, month", "calendar", "not yet tested"),
-                ("Women's vs men's football, friendlies", "context", "not yet tested"),
-                ("League familiarity", "context", "not yet tested"),
-            ],
-            columns=["Candidate", "Kind", "Verdict"],
-        )
-    )
-    st.caption(
-        "Each idea gets one of three verdicts: it holds up, there is too "
-        "little data to tell, or it is just noise. All verdicts are shown, "
-        "including the failures."
-    )
-    st.info("The tests are not written yet. Verdicts appear here once they are.",
-            icon="🚧")
