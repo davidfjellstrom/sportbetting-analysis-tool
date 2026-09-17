@@ -59,3 +59,14 @@ export function money(
   if (code === 'units') return `${sign}${number} u`
   return `${sign}${number} ${code}`
 }
+
+/**
+ * A money column as Streamlit's `NumberColumn` presets show it: the "euro"
+ * preset for EUR, the "localized" preset (up to three decimals) otherwise.
+ */
+export function tableMoney(value: number, code: string): string {
+  if (code === 'EUR') {
+    return value.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })
+  }
+  return value.toLocaleString('en-US', { maximumFractionDigits: 3 })
+}

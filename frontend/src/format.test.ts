@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fixed, integer, money, percent, signed } from './format'
+import { fixed, integer, money, percent, signed, tableMoney } from './format'
 
 describe('money', () => {
   it('matches the Python app for every currency form', () => {
@@ -36,5 +36,14 @@ describe('number formats', () => {
     expect(integer(131713)).toBe('131,713')
     expect(percent(0.8661)).toBe('86.6%')
     expect(percent(0.456, 1)).toBe('45.6%')
+  })
+})
+
+describe('tableMoney', () => {
+  it('uses the euro preset for EUR and localized otherwise', () => {
+    expect(tableMoney(1234.567, 'EUR')).toBe('€1,234.57')
+    expect(tableMoney(-5, 'EUR')).toBe('-€5.00')
+    expect(tableMoney(1692.41528, 'units')).toBe('1,692.415')
+    expect(tableMoney(1692.41528, 'SEK')).toBe('1,692.415')
   })
 })

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ApiError, getOverview } from './api/client'
-import type { OverviewResponse } from './api/types'
+import { ApiError, getExploreOptions, getOverview } from './api/client'
+import type { ExploreOptions, OverviewResponse } from './api/types'
 import { Alert } from './components/Alert'
 import { HistoryChecks } from './components/CheckReport'
 import { Tabs } from './components/Tabs'
 import { Overview } from './tabs/Overview'
+import { Upload } from './tabs/Upload'
+import { INITIAL_UPLOAD_STATE, type UploadState } from './tabs/uploadState'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -16,15 +18,18 @@ type Loaded =
   | { state: 'loading' }
   | { state: 'no-data'; message: string }
   | { state: 'error'; message: string }
-  | { state: 'ready'; overview: OverviewResponse }
+  | { state: 'ready'; overview: OverviewResponse; options: ExploreOptions }
 
 export default function App() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
   const [tab, setTab] = useState('overview')
+  // Held here rather than in the tab, so a checked file survives a visit to
+  // another tab — as it does in the Streamlit app, where every tab is live.
+  const [upload, setUpload] = useState<UploadState>(INITIAL_UPLOAD_STATE)
 
   useEffect(() => {
-    getOverview()
-      .then((overview) => setLoaded({ state: 'ready', overview }))
+    Promise.all([getOverview(), getExploreOptions()])
+      .then(([overview, options]) => setLoaded({ state: 'ready', overview, options }))
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.status === 503) {
           setLoaded({ state: 'no-data', message: error.message })
@@ -58,7 +63,13 @@ export default function App() {
           <Tabs tabs={TABS} active={tab} onChange={setTab} />
           <section className="tab-panel" role="tabpanel">
             {tab === 'overview' && <Overview data={loaded.overview} />}
-            {tab === 'upload' && <Alert kind="info">Not built yet.</Alert>}
+            {tab === 'upload' && (
+              <Upload
+                state={upload}
+                setState={setUpload}
+                dimensions={loaded.options.dimensions}
+              />
+            )}
             {tab === 'explore' && <Alert kind="info">Not built yet.</Alert>}
           </section>
         </>
