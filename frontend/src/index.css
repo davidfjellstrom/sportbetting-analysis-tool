@@ -1,17 +1,23 @@
-/* The dark theme from .streamlit/config.toml, as CSS. Colours are the same
-   hex values; the layout mimics Streamlit's wide layout closely enough that
-   someone who has seen both should not notice the move. */
+/* A dark navy theme with card panels and a glowing accent, styled after a
+   reference fintech dashboard. It has replaced the Streamlit app's warm-grey
+   theme in src/theme.ts's comment: that palette's contrast and colour-blind
+   validation was measured against the old surface colour and has not been
+   re-run against this one — see src/theme.ts. */
 
 :root {
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --grid: #2c2c2a;
-  --baseline: #383835;
+  --page: #05070c;
+  --surface: #10131f;
+  --surface-raised: #161a2b;
+  --card-border: rgba(255, 255, 255, 0.06);
+  --grid: #242a3d;
+  --baseline: #2c3349;
   --ink: #ffffff;
-  --ink-secondary: #c3c2b7;
-  --ink-muted: #898781;
-  --accent: #3987e5;
-  --negative: #e66767;
+  --ink-secondary: #a9b2c7;
+  --ink-muted: #6d7690;
+  --accent: #3b82f6;
+  --accent-rgb: 59, 130, 246;
+  --negative: #f4707f;
+  --negative-rgb: 244, 112, 127;
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: dark;
 }
@@ -71,13 +77,13 @@ h3 {
   0%,
   100% {
     text-shadow:
-      0 0 22px rgba(57, 135, 229, 0.45),
-      0 0 46px rgba(57, 135, 229, 0.18);
+      0 0 22px rgba(var(--accent-rgb), 0.45),
+      0 0 46px rgba(var(--accent-rgb), 0.18);
   }
   50% {
     text-shadow:
-      0 0 32px rgba(57, 135, 229, 0.65),
-      0 0 62px rgba(57, 135, 229, 0.28);
+      0 0 32px rgba(var(--accent-rgb), 0.65),
+      0 0 62px rgba(var(--accent-rgb), 0.28);
   }
 }
 
@@ -103,21 +109,27 @@ h3 {
 /* ---- tabs ------------------------------------------------------------ */
 
 .tabs {
-  display: flex;
-  gap: 1.5rem;
-  border-bottom: 1px solid var(--grid);
+  display: inline-flex;
+  gap: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 0.3rem;
   margin: 0.5rem 0 1.5rem;
 }
 
 .tab {
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 999px;
   color: var(--ink-secondary);
   cursor: pointer;
   font: inherit;
-  padding: 0.5rem 0 0.6rem;
-  margin-bottom: -1px;
+  padding: 0.5rem 1.25rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .tab:hover {
@@ -125,8 +137,9 @@ h3 {
 }
 
 .tab.active {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.45);
 }
 
 /* ---- metrics --------------------------------------------------------- */
@@ -144,6 +157,21 @@ h3 {
   }
 }
 
+.metric {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 1.1rem 1.25rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.metric:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12);
+}
+
 .metric-label {
   font-size: 0.875rem;
   color: var(--ink-secondary);
@@ -156,13 +184,23 @@ h3 {
 
 /* ---- charts ---------------------------------------------------------- */
 
-.chart {
-  width: 100%;
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.5rem 1.5rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 0 48px rgba(var(--accent-rgb), 0.07);
   animation: chart-in 0.5s ease-out both;
 }
 
+.chart {
+  width: 100%;
+}
+
 .chart-loading {
-  background: var(--surface);
+  background: var(--surface-raised);
+  border-radius: 0.75rem;
 }
 
 @keyframes chart-in {
@@ -183,12 +221,13 @@ h3 {
   gap: 0.75rem;
   align-items: flex-start;
   padding: 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   margin: 1rem 0;
+  border: 1px solid var(--card-border);
 }
 
 .alert-info {
-  background: rgba(57, 135, 229, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
 }
 
 .alert-warning {
@@ -196,7 +235,7 @@ h3 {
 }
 
 .alert-error {
-  background: rgba(230, 103, 103, 0.2);
+  background: rgba(var(--negative-rgb), 0.15);
 }
 
 .alert-icon {
@@ -222,7 +261,7 @@ td {
 }
 
 th {
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--ink-secondary);
   font-weight: 500;
 }
@@ -232,12 +271,19 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(57, 135, 229, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 td.fail {
   color: var(--negative);
   font-weight: 600;
+}
+
+.checks-failed table {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  overflow: hidden;
 }
 
 .loading {
@@ -352,7 +398,7 @@ input:disabled {
   padding: 1rem;
   background: var(--surface);
   border: 1px dashed var(--baseline);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   color: var(--ink-secondary);
   font: inherit;
   cursor: pointer;
@@ -384,8 +430,9 @@ input:disabled {
 /* ---- expander ---------------------------------------------------------- */
 
 .expander {
-  border: 1px solid var(--grid);
-  border-radius: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
   margin: 1rem 0;
 }
 
@@ -409,8 +456,9 @@ input:disabled {
 .table-scroll {
   max-height: 420px;
   overflow: auto;
-  border: 1px solid var(--grid);
-  border-radius: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
 }
 
 .table-scroll table {
@@ -552,12 +600,13 @@ td.num {
 @media (prefers-reduced-motion: reduce) {
   .title {
     animation: none;
-    text-shadow: 0 0 22px rgba(57, 135, 229, 0.45);
+    text-shadow: 0 0 22px rgba(var(--accent-rgb), 0.45);
   }
-  .chart {
+  .chart-card {
     animation: none;
   }
-  tbody tr {
+  tbody tr,
+  .metric {
     transition: none;
   }
 }

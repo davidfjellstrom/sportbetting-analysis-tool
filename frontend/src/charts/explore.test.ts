@@ -20,7 +20,7 @@ describe('roiBarsSpec', () => {
     }
     expect(spec.height).toBe(340)
     expect(spec.layer[0].encoding?.x.sort).toEqual(['b', 'a'])
-    expect(spec.layer[0].encoding?.color.scale.range).toEqual(['#3987e5', '#e66767'])
+    expect(spec.layer[0].encoding?.color.scale.range).toEqual(['#3b82f6', '#f4707f'])
     expect(spec.layer[0].encoding?.tooltip.map((t) => t.title)).toEqual([
       'Bookie', 'ROI %', 'Turnover (units)', 'P/L (units)', 'Matches', 'Bets',
     ])
@@ -48,7 +48,7 @@ describe('compareSpec', () => {
     expect(spec.layer[0].mark.type).toBe('line')
     expect(spec.layer[0].encoding?.color.scale).toEqual({
       domain: ['b', 'a'],
-      range: ['#3987e5', '#d95926'],
+      range: ['#3b82f6', '#f2793a'],
     })
     expect(spec.layer[0].encoding?.y.title).toBe('Cumulative ROI %')
   })

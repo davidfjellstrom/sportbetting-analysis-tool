@@ -22,7 +22,7 @@ describe('plBarsSpec', () => {
     expect(spec.layer[0].encoding?.x.sort).toBeNull()
     expect(spec.layer[0].encoding?.color.scale).toEqual({
       domain: ['Profit', 'Loss'],
-      range: ['#3987e5', '#e66767'],
+      range: ['#3b82f6', '#f4707f'],
     })
     expect(spec.layer[1].mark.type).toBe('rule')
   })
