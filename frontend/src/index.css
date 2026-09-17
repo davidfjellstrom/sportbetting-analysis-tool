@@ -100,7 +100,7 @@ h3 {
 
 @media (max-width: 800px) {
   .metric-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
@@ -366,4 +366,123 @@ th.num,
 td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- explore ----------------------------------------------------------- */
+
+.controls.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.controls.filters-row-1 {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.controls.group-row {
+  grid-template-columns: 2fr 2fr 1fr;
+}
+
+.controls.pick-row {
+  grid-template-columns: 3fr 1fr;
+}
+
+@media (max-width: 800px) {
+  .controls.two,
+  .controls.filters-row-1,
+  .controls.group-row,
+  .controls.pick-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.expander .controls {
+  margin: 1rem;
+}
+
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-range input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--grid);
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 0.35rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.chip button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.chips select {
+  flex: 1;
+  min-width: 10rem;
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.25rem;
+}
+
+.chips select:focus {
+  outline: none;
+}
+
+.radio-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+}
+
+.slider {
+  margin: 1.5rem 0 0.5rem;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.slider-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.slider-value {
+  min-width: 2rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.stale {
+  opacity: 0.7;
+  transition: opacity 0.15s;
 }

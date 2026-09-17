@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ApiError, getExploreOptions, getOverview } from './api/client'
 import type { ExploreOptions, OverviewResponse } from './api/types'
 import { Alert } from './components/Alert'
 import { HistoryChecks } from './components/CheckReport'
 import { Tabs } from './components/Tabs'
 import { Overview } from './tabs/Overview'
+import { Explore } from './tabs/Explore'
+import { initialExploreState, type ExploreState } from './tabs/exploreState'
 import { Upload } from './tabs/Upload'
 import { INITIAL_UPLOAD_STATE, type UploadState } from './tabs/uploadState'
 
@@ -26,10 +28,19 @@ export default function App() {
   // Held here rather than in the tab, so a checked file survives a visit to
   // another tab — as it does in the Streamlit app, where every tab is live.
   const [upload, setUpload] = useState<UploadState>(INITIAL_UPLOAD_STATE)
+  const [explore, setExplore] = useState<ExploreState | null>(null)
+  const updateExplore = useCallback(
+    (update: (s: ExploreState) => ExploreState) =>
+      setExplore((s) => (s === null ? s : update(s))),
+    [],
+  )
 
   useEffect(() => {
     Promise.all([getOverview(), getExploreOptions()])
-      .then(([overview, options]) => setLoaded({ state: 'ready', overview, options }))
+      .then(([overview, options]) => {
+        setExplore(initialExploreState(options))
+        setLoaded({ state: 'ready', overview, options })
+      })
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.status === 503) {
           setLoaded({ state: 'no-data', message: error.message })
@@ -70,7 +81,9 @@ export default function App() {
                 dimensions={loaded.options.dimensions}
               />
             )}
-            {tab === 'explore' && <Alert kind="info">Not built yet.</Alert>}
+            {tab === 'explore' && explore && (
+              <Explore state={explore} setState={updateExplore} options={loaded.options} />
+            )}
           </section>
         </>
       )}
