@@ -1,0 +1,185 @@
+/* The dark theme from .streamlit/config.toml, as CSS. Colours are the same
+   hex values; the layout mimics Streamlit's wide layout closely enough that
+   someone who has seen both should not notice the move. */
+
+:root {
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --ink: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+  --accent: #3987e5;
+  --negative: #e66767;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 4rem 6rem;
+}
+
+@media (max-width: 800px) {
+  .page {
+    padding: 1.5rem 1rem 4rem;
+  }
+}
+
+h1 {
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 1.5rem;
+}
+
+h3 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 2rem 0 1rem;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+/* ---- tabs ------------------------------------------------------------ */
+
+.tabs {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--grid);
+  margin: 0.5rem 0 1.5rem;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.5rem 0 0.6rem;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+/* ---- metrics --------------------------------------------------------- */
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 800px) {
+  .metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
+}
+
+.metric-value {
+  font-size: 2.25rem;
+  line-height: 1.3;
+}
+
+/* ---- charts ---------------------------------------------------------- */
+
+.chart {
+  width: 100%;
+}
+
+.chart-loading {
+  background: var(--surface);
+}
+
+/* ---- alerts ---------------------------------------------------------- */
+
+.alert {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.alert-info {
+  background: rgba(57, 135, 229, 0.15);
+}
+
+.alert-warning {
+  background: rgba(201, 133, 0, 0.2);
+}
+
+.alert-error {
+  background: rgba(230, 103, 103, 0.2);
+}
+
+.alert-icon {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+/* ---- tables ---------------------------------------------------------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 0.5rem 0 1rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: top;
+}
+
+th {
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+td.fail {
+  color: var(--negative);
+  font-weight: 600;
+}
+
+.loading {
+  color: var(--ink-muted);
+}
