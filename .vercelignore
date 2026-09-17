@@ -13,3 +13,5 @@ app/
 .ruff_cache/
 frontend/node_modules/
 frontend/dist/
+.claude/
+.agents/

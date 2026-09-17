@@ -142,7 +142,6 @@ app/streamlit_app.py  The same three tabs in Streamlit, on the same src/ code.
 .streamlit/           Theme; the same colours as frontend/src/theme.ts.
 tests/                Synthetic fixtures only; no real data.
 reports/              Generated output. Gitignored.
-requirements.txt      What the deployed API installs, and nothing more.
 vercel.json           Region and what to leave out of the function bundle.
 ```
 

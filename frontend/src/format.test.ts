@@ -40,10 +40,11 @@ describe('number formats', () => {
 })
 
 describe('tableMoney', () => {
-  it('uses the euro preset for EUR and localized otherwise', () => {
+  it('shows two decimals, with the euro sign for EUR', () => {
     expect(tableMoney(1234.567, 'EUR')).toBe('€1,234.57')
     expect(tableMoney(-5, 'EUR')).toBe('-€5.00')
-    expect(tableMoney(1692.41528, 'units')).toBe('1,692.415')
-    expect(tableMoney(1692.41528, 'SEK')).toBe('1,692.415')
+    expect(tableMoney(1692.41528, 'units')).toBe('1,692.42')
+    expect(tableMoney(-59.085, 'units')).toBe('-59.08')
+    expect(tableMoney(1692.41528, 'SEK')).toBe('1,692.42')
   })
 })

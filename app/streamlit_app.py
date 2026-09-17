@@ -310,10 +310,10 @@ def slice_columns(dim_label: str, code: str) -> dict:
             ),
         ),
         "turnover": st.column_config.NumberColumn(
-            f"Turnover ({code})", format="euro" if code == "EUR" else "localized"
+            f"Turnover ({code})", format="euro" if code == "EUR" else "%.2f"
         ),
         "pl": st.column_config.NumberColumn(
-            f"P/L ({code})", format="euro" if code == "EUR" else "localized"
+            f"P/L ({code})", format="euro" if code == "EUR" else "%.2f"
         ),
         "roi_pct": st.column_config.NumberColumn(
             "ROI %",

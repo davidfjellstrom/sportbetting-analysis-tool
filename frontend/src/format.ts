@@ -61,12 +61,12 @@ export function money(
 }
 
 /**
- * A money column as Streamlit's `NumberColumn` presets show it: the "euro"
- * preset for EUR, the "localized" preset (up to three decimals) otherwise.
+ * A money column in a table: two decimals, with the euro sign when the
+ * amounts are EUR. Two is enough to read a slice; three only add noise.
  */
 export function tableMoney(value: number, code: string): string {
   if (code === 'EUR') {
     return value.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })
   }
-  return value.toLocaleString('en-US', { maximumFractionDigits: 3 })
+  return fixed(value, 2)
 }
