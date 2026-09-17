@@ -18,7 +18,7 @@ win or lose together, a hot league is usually just a lucky month, and if you
 compare twenty countries one of them will look brilliant by chance. Most
 betting stats ignore that.
 
-**Try it:** _link coming once the app is deployed_
+**Try it:** https://sportbetting-analysis-tool.vercel.app
 
 ## How it works
 
