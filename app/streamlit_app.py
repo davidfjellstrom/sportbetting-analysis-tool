@@ -9,19 +9,13 @@ Run with:  streamlit run app/streamlit_app.py
 
 from __future__ import annotations
 
-import math
-import sys
-from pathlib import Path
-
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "src"))
-
-import checks  # noqa: E402
-import loader  # noqa: E402
+import aggregations as agg
+import checks
+import loader
 
 st.set_page_config(
     page_title="Sportmarket analysis",
@@ -71,7 +65,8 @@ SERIES_COLOURS: list[str] = [
     "#9085e9",  # violet
     "#e66767",  # red
 ]
-MAX_SERIES = len(SERIES_COLOURS)
+MAX_SERIES = agg.MAX_SERIES
+assert len(SERIES_COLOURS) == MAX_SERIES
 
 CURRENCY_SYMBOLS = {"EUR": "\u20ac", "GBP": "\u00a3", "USD": "$", "SEK": "kr"}
 #: Written after the number ("218 kr"), not before it.
@@ -82,19 +77,7 @@ SUFFIX_CURRENCIES = frozenset({"SEK"})
 DISPLAY_CURRENCIES = ("EUR", "USD", "SEK")
 
 
-def currency_code(frame: pd.DataFrame) -> str:
-    """The currency the amounts are in, read from the data rather than assumed.
-
-    ``checks.check_single_currency`` guarantees there is only one, so taking the
-    first is safe — and if a future export ever mixes currencies, that check
-    fails loudly above the tabs before this label can mislead anyone.
-    """
-    if "currency" in frame.columns:
-        values = frame["currency"].dropna().unique()
-        if len(values) == 1:
-            code = str(values[0])
-            return code if code == "units" else code.upper()
-    return "EUR"
+currency_code = agg.currency_code
 
 
 def money(value: float, code: str, decimals: int = 0, signed: bool = False) -> str:
@@ -142,33 +125,7 @@ def style_chart(chart: alt.Chart) -> alt.Chart:
     )
 
 
-#: Below this span a frame is bucketed by day rather than by month. A fresh
-#: export covers days, not years: bucketed monthly it collapses to a single
-#: point, and an area chart with one point draws nothing at all.
-DAILY_BUCKET_MAX_SPAN = pd.Timedelta(days=92)
-
-
-def _by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
-    """Turnover, P/L and running P/L per bucket, plus how to label a bucket."""
-    span = frame["event_day"].max() - frame["event_day"].min()
-    # Two formats per resolution: the axis gets the short one (a daily axis
-    # repeating the same year on every tick just collides with itself), the
-    # tooltip the unambiguous one.
-    freq, fmt, tick_fmt, label = (
-        ("D", "%d %b %Y", "%d %b", "Day")
-        if span <= DAILY_BUCKET_MAX_SPAN
-        else ("M", "%b %Y", "%b %Y", "Month")
-    )
-    out = (
-        frame.assign(period=frame["event_day"].dt.to_period(freq))
-        .groupby("period", as_index=False)[["turnover", "pl"]]
-        .sum()
-    )
-    out["period"] = out["period"].dt.to_timestamp()
-    out["cumulative_pl"] = out["pl"].cumsum()
-    out["label"] = out["period"].dt.strftime(fmt)
-    out["tick"] = out["period"].dt.strftime(tick_fmt)
-    return out, tick_fmt, label
+_by_period = agg.by_period
 
 
 def cumulative_chart(frame: pd.DataFrame, code: str) -> alt.Chart:
@@ -324,128 +281,17 @@ def render_checks(report_checks: checks.CheckReport) -> None:
         st.dataframe(table, width="stretch", hide_index=True)
 
 
-#: A slice needs both to be worth its own cumulative curve. Turnover alone
-#: lets a handful of huge bets in; bet count alone lets a long tail of tiny
-#: ones in. Requiring both keeps the grid to the segments that actually have a
-#: history to show.
-SMALL_MULTIPLE_MIN_TURNOVER = 350.0  # units; roughly 0.3% of lifetime turnover
-SMALL_MULTIPLE_MIN_BETS = 2_000
+SMALL_MULTIPLE_MIN_TURNOVER = agg.SMALL_MULTIPLE_MIN_TURNOVER
+SMALL_MULTIPLE_MIN_BETS = agg.SMALL_MULTIPLE_MIN_BETS
+_cumulative_by_slice = agg.cumulative_by_slice
+_aggregate = agg.aggregate
 
+#: The figures are computed in src/aggregations.py, shared with the API so
+#: both apps show the same numbers. Streamlit only adds its cache on top.
+_with_dimensions = st.cache_data(show_spinner=False)(agg.with_dimensions)
 
-def _cumulative_by_slice(frame: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Monthly running ROI per slice, for the small-multiple grid.
-
-    Running **ROI**, not running P/L in currency: a large segment draws a tall
-    P/L curve merely by being large, which compares size rather than skill.
-    ``cumsum(pl) / cumsum(turnover)`` puts every segment on the same axis, and
-    the shape carries the information — a real edge settles onto a positive
-    number, noise keeps wandering.
-    """
-    monthly = (
-        frame.assign(month=frame["event_day"].dt.to_period("M"))
-        .groupby([column, "month"], observed=True, dropna=False)[["turnover", "pl"]]
-        .sum()
-        .reset_index()
-        .rename(columns={column: "slice"})
-    )
-    monthly["slice"] = monthly["slice"].astype("string").fillna("(no value)")
-    monthly["month"] = monthly["month"].dt.to_timestamp()
-    monthly = monthly.sort_values(["slice", "month"])
-    grouped = monthly.groupby("slice", observed=True)
-    monthly["cum_pl"] = grouped["pl"].cumsum()
-    monthly["cum_turnover"] = grouped["turnover"].cumsum()
-    monthly["cum_roi_pct"] = 100 * monthly["cum_pl"] / monthly["cum_turnover"]
-    return monthly
-
-
-#: Dimensions the explorer can group by. Raw export columns first, then bins
-#: derived here for presentation only — they are not analysis features and do
-#: not belong in ``features.py``.
-DIMENSIONS: dict[str, str] = {
-    "Market type": "market_type",
-    "Selection": "selection",
-    "Bookie": "bookie",
-    "Country": "country",
-    "Competition": "competition",
-    "Market (sport / period)": "market",
-    "Event type": "event_type",
-    "Stake bucket": "_stake_bucket",
-    "Bets aggregated on the row": "_n_bets_bucket",
-    "Year": "_year",
-    "Month": "_month",
-    "Weekday": "_weekday",
-}
-
-SORTS: dict[str, tuple[str, bool]] = {
-    "Turnover (largest first)": ("turnover", False),
-    "ROI (best first)": ("roi_pct", False),
-    "ROI (worst first)": ("roi_pct", True),
-    "P/L (largest first)": ("pl", False),
-    "Matches (most first)": ("fixtures", False),
-    "Bets per match (most first)": ("bets_per_fixture", False),
-    "Name": ("slice", True),
-}
-
-#: In units, where 1 is the typical stake: a quarter of matched rows sit
-#: below 0.5, half below 1, nine in ten below 3.5.
-STAKE_BINS = [0, 0.5, 1, 2, 3, 5, 10, float("inf")]
-STAKE_LABELS = ["<0.5", "0.5-1", "1-2", "2-3", "3-5", "5-10", "10+"]
-
-@st.cache_data(show_spinner=False)
-def _with_dimensions(frame: pd.DataFrame) -> pd.DataFrame:
-    """Attach the presentation-only bins the explorer offers."""
-    out = frame.copy()
-    out["_year"] = out["event_day"].dt.year.astype("string")
-    out["_month"] = out["event_day"].dt.to_period("M").astype("string")
-    out["_weekday"] = out["event_day"].dt.day_name().astype("string")
-    out["_stake_bucket"] = pd.cut(
-        out["stake"], bins=STAKE_BINS, labels=STAKE_LABELS, right=False
-    )
-    out["_n_bets_bucket"] = pd.cut(
-        out["n_bets"], bins=[0, 1, 2, float("inf")], labels=["1", "2", "3+"]
-    )
-    return out
-
-
-def _aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Turnover, P/L and ROI per slice.
-
-    ``dropna=False`` on purpose: a material share of rows carry no
-    ``selection``, and they need not perform like the rest. Dropping them
-    quietly would change every total that touches the column without saying so.
-    """
-    grouped = (
-        frame.groupby(column, observed=True, dropna=False)
-        .agg(
-            bets=("n_bets", "sum"),
-            fixtures=("fixture_id", "nunique"),
-            turnover=("turnover", "sum"),
-            pl=("pl", "sum"),
-        )
-        .reset_index()
-        .rename(columns={column: "slice"})
-    )
-    grouped["slice"] = grouped["slice"].astype("string").fillna("(no value)")
-    # Turnover-weighted: sum(pl) / sum(turnover), which is what the export's own
-    # ROI column measures per row. The unweighted mean of that column is a
-    # different number — small stakes are many and can pull it far from the
-    # turnover-weighted figure — so averaging rows instead of weighting by
-    # turnover is wrong, not merely imprecise.
-    grouped["roi_pct"] = 100 * grouped["pl"] / grouped["turnover"]
-    # Bets on one fixture win or lose together (CLAUDE.md rule 1), so this is
-    # roughly the factor by which the slice's bet count overstates how much
-    # independent information it carries. It is also the column that will drive
-    # the width of the interval once stats.py resamples fixtures rather than
-    # rows. Computed after the aggregation because division is not an
-    # aggregation: .agg() collapses one column per group, this combines two
-    # results that already exist.
-    grouped["bets_per_fixture"] = grouped["bets"] / grouped["fixtures"]
-    # Explicit order rather than assignment order: bets_per_fixture belongs
-    # beside the fixture count it is derived from, not wherever it happened to
-    # be computed.
-    return grouped[
-        ["slice", "bets", "fixtures", "bets_per_fixture", "turnover", "pl", "roi_pct"]
-    ]
+DIMENSIONS: dict[str, str] = {d.label: d.column for d in agg.DIMENSIONS}
+SORT_LABELS: list[str] = [s.label for s in agg.SORTS]
 
 
 def slice_columns(dim_label: str, code: str) -> dict:
@@ -654,9 +500,7 @@ with explore:
             min_value=day_min,
             max_value=day_max,
         )
-        # Ceiling to a whole unit so the default sits at or above every row and
-        # the filter starts out excluding nothing.
-        stake_ceiling = float(math.ceil(frame["stake"].max()))
+        stake_ceiling = agg.stake_ceiling(frame)
         min_stake = fc2.number_input(
             f"Minimum stake ({CUR})", min_value=0.0, value=0.0, step=0.5
         )
@@ -669,32 +513,29 @@ with explore:
         )
         fc4, fc5 = st.columns(2)
         pick_types = fc4.multiselect(
-            "Market type",
-            sorted(str(v) for v in frame["market_type"].dropna().unique()),
+            "Market type", agg.option_values(frame, "market_type")
         )
-        pick_books = fc5.multiselect(
-            "Bookie", sorted(str(v) for v in frame["bookie"].dropna().unique())
-        )
+        pick_books = fc5.multiselect("Bookie", agg.option_values(frame, "bookie"))
 
-    if isinstance(span, tuple) and len(span) == 2:
-        frame = frame[
-            (frame["event_day"] >= pd.Timestamp(span[0]))
-            & (frame["event_day"] <= pd.Timestamp(span[1]))
-        ]
-    if max_stake < min_stake:
-        st.warning(
-            f"Maximum stake ({max_stake:,.2f}) is below the minimum "
-            f"({min_stake:,.2f}) — no row can satisfy both."
+    # A half-picked date range (one click into the widget) means no date
+    # filter yet, not an empty one.
+    dates = span if isinstance(span, tuple) and len(span) == 2 else (None, None)
+    try:
+        frame = agg.apply_filters(
+            frame,
+            agg.Filters(
+                date_from=dates[0],
+                date_to=dates[1],
+                min_stake=min_stake,
+                max_stake=max_stake,
+                market_types=tuple(pick_types),
+                bookies=tuple(pick_books),
+            ),
+            stake_ceiling,
         )
+    except agg.StakeRangeError as exc:
+        st.warning(str(exc))
         st.stop()
-    if min_stake:
-        frame = frame[frame["stake"] >= min_stake]
-    if max_stake < stake_ceiling:
-        frame = frame[frame["stake"] <= max_stake]
-    if pick_types:
-        frame = frame[frame["market_type"].astype("string").isin(pick_types)]
-    if pick_books:
-        frame = frame[frame["bookie"].astype("string").isin(pick_books)]
 
     if frame.empty:
         st.warning("No rows match those filters.")
@@ -702,7 +543,7 @@ with explore:
 
     gc1, gc2, gc3 = st.columns([2, 2, 1])
     dim_label = gc1.selectbox("Group by", list(DIMENSIONS))
-    sort_label = gc2.selectbox("Sort by", list(SORTS))
+    sort_label = gc2.selectbox("Sort by", SORT_LABELS)
     min_fixtures = gc3.number_input("Min. matches", min_value=0, value=0, step=25)
 
     table_all = _aggregate(frame, DIMENSIONS[dim_label])
@@ -710,8 +551,7 @@ with explore:
     n_before = len(table)
     if min_fixtures:
         table = table[table["fixtures"] >= min_fixtures]
-    sort_col, ascending = SORTS[sort_label]
-    table = table.sort_values(sort_col, ascending=ascending)
+    table = agg.sort_table(table, agg.SORT_BY_LABEL[sort_label])
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric(f"Turnover in view ({CUR})", money(frame["turnover"].sum(), CUR))
@@ -775,10 +615,7 @@ with explore:
     # Pick segments, plot their cumulative curves on one set of axes
     # ------------------------------------------------------------------
     st.subheader(":blue[Compare segments over time]")
-    worth_a_curve = table_all[
-        (table_all["turnover"] >= SMALL_MULTIPLE_MIN_TURNOVER)
-        & (table_all["bets"] >= SMALL_MULTIPLE_MIN_BETS)
-    ].sort_values("turnover", ascending=False)
+    worth_a_curve = agg.eligible_for_curves(table_all)
 
     if worth_a_curve.empty:
         st.info(
