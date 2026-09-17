@@ -2,16 +2,18 @@
 # Never commit the exports. They contain personal financial information.
 # See CLAUDE.md -> Privacy.
 # ---------------------------------------------------------------------------
-# Ignore the contents, keep the directories so a fresh clone has somewhere
-# to put the exports. (Ignoring `data/raw/` itself would hide the .gitkeep too:
-# git does not descend into an ignored directory.)
+# Ignore the raw exports, keep the directory so a fresh clone has somewhere
+# to put them. (Ignoring `data/raw/` itself would hide the .gitkeep too: git
+# does not descend into an ignored directory.)
 data/raw/*
-data/processed/*
 !data/raw/.gitkeep
-!data/processed/.gitkeep
 *.csv
 *.parquet
 *.xlsx
+
+# The processed exports are committed: every amount is in notional units
+# (see README -> Units), and they are what the deployed app reads.
+!data/processed/*.csv
 
 # Reports may embed real monetary values
 reports/*
@@ -40,3 +42,4 @@ htmlcov/
 # Agent tooling: symlinks into .venv created by the streamlit package
 .claude/
 .agents/
+.vercel

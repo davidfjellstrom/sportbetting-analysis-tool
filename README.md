@@ -10,8 +10,8 @@ you win on, whether your big bets do better than your small ones, and where the
 losses come from.
 
 Upload your own export and get the same view of your own betting in seconds.
-Nothing is stored — the file lives in your browser session and is gone when you
-close it.
+Nothing is stored — the file is checked in memory and forgotten as soon as the
+answer is sent back.
 
 What makes it different: it is built to be skeptical. Bets on the same match
 win or lose together, a hot league is usually just a lucky month, and if you
@@ -26,7 +26,8 @@ The app runs on two kinds of input:
 
 - **A history.** Whatever exports are in `data/processed/` — for this repo, four
   years of the owner's own betting (Nov 2022 – Sep 2026), rescaled to notional
-  units so the app can be run and shown without publishing the amounts.
+  units so the app can be run and shown without publishing the amounts. Those
+  files are committed; the raw ones never are.
 - **A single file.** The Upload tab takes any Sportmarket Pro CSV, runs the same
   integrity battery on it, and reports how that file went. It is shown on its
   own and never merged into the loaded history.
@@ -40,23 +41,45 @@ previous run.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,app]"
-
-cp /path/to/exports/*.csv data/raw/   # never committed
-python src/loader.py                  # rewrites data/raw/ -> data/processed/ in units
+python -m pip install -e ".[dev,app,api,stats]"
 
 pytest -m "not owner"                 # tests for the modules that exist today
+ruff check .
+```
+
+The web app is a React page over a small FastAPI backend. Run them side by
+side; the dev server forwards `/api` to the backend, so both live on one
+address, as they do once deployed:
+
+```bash
+uvicorn api.index:app --reload        # http://localhost:8000
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+The Streamlit app is still there and shows the same figures from the same
+code:
+
+```bash
 streamlit run app/streamlit_app.py
 ```
 
-The app reads `data/processed/` and nothing else. There is no toggle that shows
-the raw amounts, and the raw files do not need to be on the machine the app runs
-on — see [Units](#units). Skipping `python src/loader.py` leaves the app with
-nothing to load, and it says so instead of falling back to `data/raw/`.
+Both read `data/processed/` and nothing else. There is no toggle that shows the
+raw amounts, and the raw files do not need to be on the machine the app runs on
+— see [Units](#units). To refresh the processed files from a new export:
+
+```bash
+cp /path/to/exports/*.csv data/raw/   # never committed
+python src/loader.py                  # rewrites data/raw/ -> data/processed/ in units
+```
+
+Skipping that step leaves the app with nothing to load, and it says so instead
+of falling back to `data/raw/`.
 
 ### The app
 
-Three tabs over the modules in `src/`.
+Three tabs over the modules in `src/`. The figures on every tab are computed
+by `src/aggregations.py` and served by the API; the page displays them and
+computes nothing itself, so the number on screen is the number the tests cover.
 
 **Overview** — what is loaded: matched turnover, P/L, fill rate, odds coverage,
 rows, bets, fixtures, unmatched rows, and cumulative P/L over time. Bucketed by
@@ -98,19 +121,34 @@ ceiling — hence the cap on the segment comparison.
 ### Layout
 
 ```
-data/raw/            Exports as they come out of Sportmarket. Gitignored, always.
-data/processed/       The same exports in units. Gitignored. What the app reads.
+data/raw/             Exports as they come out of Sportmarket. Gitignored, always.
+data/processed/       The same exports in units. Committed. What the app reads.
 src/loader.py         CSV -> tidy frame; fixture ids; fill rate; the units rewrite.
 src/checks.py         Data-integrity battery. Reports, never repairs.
+src/aggregations.py   Every figure the apps show: bins, per-slice and per-period totals.
 src/odds.py           Censoring-aware implied odds.            (owner, not written)
 src/features.py       both_sides_flag, n_bets_on_position, …   (owner, not written)
 src/stats.py          Fixture-clustered bootstrap, intervals.  (owner, not written)
 src/validate.py       The skeptic battery.                     (interface sketch)
-app/streamlit_app.py  The three tabs above.
-.streamlit/           Theme; one accent colour shared with the app's palette.
+api/                  FastAPI: routing, validation, serialisation. Nothing else.
+  index.py            The app; also serves the built frontend.
+  history.py          data/processed/ read once per process, shared read-only.
+  schemas.py          The API contract, mirrored by frontend/src/api/types.ts.
+  routes/             overview, explore, upload.
+frontend/             Vite + React + TypeScript. Displays; never computes.
+  src/charts/         Vega-Lite specs, with the chart rules as tested functions.
+  src/tabs/           Overview, Upload, Explore.
+app/streamlit_app.py  The same three tabs in Streamlit, on the same src/ code.
+.streamlit/           Theme; the same colours as frontend/src/theme.ts.
 tests/                Synthetic fixtures only; no real data.
 reports/              Generated output. Gitignored.
+requirements.txt      What the deployed API installs, and nothing more.
+vercel.json           Region and what to leave out of the function bundle.
 ```
+
+Deployed as one Vercel project: the frontend is built during the deploy and
+served from the CDN, the API runs as a single Python function, and both share
+one address so the page never has to ask another origin for its numbers.
 
 ### What the export format actually says
 
@@ -216,8 +254,9 @@ The hypotheses the machinery is built to test. None has a verdict until
 
 | Part | State |
 | --- | --- |
-| `loader.py`, `checks.py` | Written and tested. |
-| Overview, Upload, Explore | Working on real exports. |
+| `loader.py`, `checks.py`, `aggregations.py` | Written and tested. |
+| `api/` | Written and tested on synthetic data. |
+| Overview, Upload, Explore | Working on real exports, in both the React app and the Streamlit app. |
 | `odds.py`, `features.py`, `stats.py` | Signatures and contracts only; every function raises. |
 | `validate.py` | Interface proposal, open questions in the module docstring. |
 | Verdicts | No tab yet; the hypotheses are listed under Candidate patterns. |
@@ -245,7 +284,9 @@ files keep the export's own headers and every non-monetary column byte for byte,
 and therefore go through the same loader, the same checks and the same upload
 path as a raw export.
 
-Both `data/raw/` and `data/processed/` are gitignored, as is `reports/`. There is
-no toggle back to currency for the loaded history; someone who uploads their own
-export chooses units or currency for that file alone, and it is held in memory
-for that session only. The method is what is on display, not the amounts.
+`data/raw/` is gitignored, as is `reports/`; `data/processed/` is committed,
+because it is what the deployed app reads and it contains no amount in any
+currency. There is no toggle back to currency for the loaded history; someone
+who uploads their own export chooses units or currency for that file alone,
+and it is held in memory only for as long as the request takes. The method is
+what is on display, not the amounts.

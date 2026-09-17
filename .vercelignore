@@ -1,0 +1,15 @@
+# What a deploy from this directory must never upload. A deploy from Git only
+# sees committed files, and data/raw/ is never committed; this covers the
+# `vercel deploy` CLI path too, which uploads the working directory as it is.
+data/raw/
+reports/
+notebooks/
+tests/
+app/
+.streamlit/
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+frontend/node_modules/
+frontend/dist/

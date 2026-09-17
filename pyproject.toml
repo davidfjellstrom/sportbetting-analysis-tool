@@ -36,6 +36,17 @@ py-modules = [
     "validate",
 ]
 
+# Vercel: one Python function from api/index.py, the frontend built first
+# and served from the CDN (FastAPI's app.frontend), never from the function.
+[tool.vercel]
+entrypoint = "api.index:app"
+
+[tool.vercel.scripts]
+build = "cd frontend && npm ci && npm run build"
+
+[tool.vercel.fastapi.static]
+exclude = true
+
 [tool.pytest.ini_options]
 # Flat src layout: modules import as `from odds import implied_odds`.
 # The repo root is on the path so tests can import the `api` package.

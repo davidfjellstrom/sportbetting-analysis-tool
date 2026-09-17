@@ -10,9 +10,14 @@ Run locally with:  uvicorn api.index:app --reload
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 
 from api.routes import explore, history, upload
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 app = FastAPI(
     title="Sportmarket analysis API",
@@ -24,3 +29,10 @@ app = FastAPI(
 app.include_router(history.router)
 app.include_router(explore.router)
 app.include_router(upload.router)
+
+# The built React app, served from the same origin as the API. On Vercel the
+# files are promoted to the CDN at build time and never reach the function;
+# locally uvicorn serves them itself once `npm run build` has run. The
+# directory is not required to exist, so the API imports (and its tests run)
+# on a machine that has not built the frontend.
+app.frontend("/", directory=FRONTEND_DIST, check_dir=False)

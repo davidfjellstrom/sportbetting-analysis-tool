@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["arn1"],
+  "functions": {
+    "api/index.py": {
+      "excludeFiles": "{frontend/**,tests/**,notebooks/**,reports/**,app/**,.streamlit/**,data/raw/**}"
+    }
+  }
+}
