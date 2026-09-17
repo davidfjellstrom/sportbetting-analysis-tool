@@ -52,7 +52,7 @@ export default function App() {
 
   return (
     <main className="page">
-      <h1 className="accent">
+      <h1 className="accent title">
         Sportmarket analysis <span className="badge">Beta</span>
       </h1>
 

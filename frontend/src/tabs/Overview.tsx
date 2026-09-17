@@ -14,8 +14,8 @@ export function Overview({ data }: { data: OverviewResponse }) {
         What you see here is one person's betting history: every bet placed
         through Sportmarket Pro from {formatMonth(data.report.date_min)} to{' '}
         {formatMonth(data.report.date_max)}, exactly as the platform exported it.
-        Amounts are shown in units rather than money — one unit is a typical
-        stake — so the pattern of the results is on display, not the sums.
+        Amounts are shown in units rather than money, so the pattern of the
+        results is on display, not the sums.
         The Upload tab runs the same checks on an export of your own.
       </p>
       <MetricRow>

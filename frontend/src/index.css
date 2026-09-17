@@ -60,6 +60,27 @@ h3 {
   color: var(--accent);
 }
 
+/* A slow, subtle breathing glow — decoration only, so it uses the accent
+   colour rather than the profit/loss pair, and turns off for anyone who has
+   asked their system for less motion. */
+.title {
+  animation: title-glow 4s ease-in-out infinite;
+}
+
+@keyframes title-glow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 22px rgba(57, 135, 229, 0.45),
+      0 0 46px rgba(57, 135, 229, 0.18);
+  }
+  50% {
+    text-shadow:
+      0 0 32px rgba(57, 135, 229, 0.65),
+      0 0 62px rgba(57, 135, 229, 0.28);
+  }
+}
+
 .badge {
   display: inline-block;
   vertical-align: middle;
@@ -137,10 +158,22 @@ h3 {
 
 .chart {
   width: 100%;
+  animation: chart-in 0.5s ease-out both;
 }
 
 .chart-loading {
   background: var(--surface);
+}
+
+@keyframes chart-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ---- alerts ---------------------------------------------------------- */
@@ -192,6 +225,14 @@ th {
   background: var(--surface);
   color: var(--ink-secondary);
   font-weight: 500;
+}
+
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+tbody tr:hover {
+  background: rgba(57, 135, 229, 0.08);
 }
 
 td.fail {
@@ -504,4 +545,19 @@ td.num {
 .stale {
   opacity: 0.7;
   transition: opacity 0.15s;
+}
+
+/* ---- motion preference --------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .title {
+    animation: none;
+    text-shadow: 0 0 22px rgba(57, 135, 229, 0.45);
+  }
+  .chart {
+    animation: none;
+  }
+  tbody tr {
+    transition: none;
+  }
 }
