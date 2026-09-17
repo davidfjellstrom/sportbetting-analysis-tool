@@ -60,6 +60,25 @@ h3 {
   color: var(--accent);
 }
 
+.badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.intro {
+  max-width: 60rem;
+  color: var(--ink-secondary);
+  margin: 0 0 1.5rem;
+}
+
 /* ---- tabs ------------------------------------------------------------ */
 
 .tabs {

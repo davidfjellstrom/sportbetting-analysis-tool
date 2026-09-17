@@ -52,7 +52,9 @@ export default function App() {
 
   return (
     <main className="page">
-      <h1 className="accent">Sportmarket analysis</h1>
+      <h1 className="accent">
+        Sportmarket analysis <span className="badge">Beta</span>
+      </h1>
 
       {loaded.state === 'loading' && <div className="loading">Loading…</div>}
       {loaded.state === 'no-data' && (

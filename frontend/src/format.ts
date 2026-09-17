@@ -70,3 +70,13 @@ export function tableMoney(value: number, code: string): string {
   }
   return fixed(value, 2)
 }
+
+/** "2022-11-04" -> "November 2022"; a missing date reads as "?" rather than crashing. */
+export function formatMonth(day: string | null): string {
+  if (!day) return '?'
+  const [year, month] = day.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+}

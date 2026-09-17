@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fixed, integer, money, percent, signed, tableMoney } from './format'
+import { fixed, formatMonth, integer, money, percent, signed, tableMoney } from './format'
 
 describe('money', () => {
   it('matches the Python app for every currency form', () => {
@@ -46,5 +46,13 @@ describe('tableMoney', () => {
     expect(tableMoney(1692.41528, 'units')).toBe('1,692.42')
     expect(tableMoney(-59.085, 'units')).toBe('-59.08')
     expect(tableMoney(1692.41528, 'SEK')).toBe('1,692.42')
+  })
+})
+
+describe('formatMonth', () => {
+  it('names the month and year', () => {
+    expect(formatMonth('2022-11-04')).toBe('November 2022')
+    expect(formatMonth('2026-09-05')).toBe('September 2026')
+    expect(formatMonth(null)).toBe('?')
   })
 })
