@@ -99,11 +99,7 @@ export function Upload({
   return (
     <>
       <h3 className="accent">Check a new export</h3>
-      <p className="caption">
-        Upload your own Sportmarket Pro export to see how it went. The file is
-        checked, shown on its own and never added to the main dataset. One file
-        shows what happened — it cannot tell you what works.
-      </p>
+      <p className="caption">Upload your own Sportmarket Pro CSV-export to get it analyzed.</p>
 
       <label className="uploader">
         <span className="label">Sportmarket Pro export (CSV)</span>
