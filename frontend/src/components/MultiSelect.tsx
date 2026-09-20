@@ -1,4 +1,5 @@
 import { Help } from './Help'
+import { Select } from './Select'
 
 /** Streamlit's multiselect: chips for what is picked, a list for the rest. */
 export function MultiSelect({
@@ -36,21 +37,15 @@ export function MultiSelect({
             </button>
           </span>
         ))}
-        <select
-          aria-label={`Add ${label.toLowerCase()}`}
+        <Select
+          variant="inline"
+          ariaLabel={`Add ${label.toLowerCase()}`}
           value=""
+          onChange={(v) => onChange([...selected, v])}
+          options={remaining.map((o) => ({ value: o, label: o }))}
+          placeholder={full ? `Up to ${max}` : 'Choose an option'}
           disabled={full || remaining.length === 0}
-          onChange={(e) => {
-            if (e.target.value) onChange([...selected, e.target.value])
-          }}
-        >
-          <option value="">{full ? `Up to ${max}` : 'Choose an option'}</option>
-          {remaining.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
+        />
       </div>
     </div>
   )

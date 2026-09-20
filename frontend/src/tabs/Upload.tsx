@@ -9,6 +9,7 @@ import { CheckFailureBanner, CheckTable } from '../components/CheckReport'
 import { Help } from '../components/Help'
 import { LazyChart } from '../components/LazyChart'
 import { Metric, MetricRow } from '../components/Metric'
+import { Select } from '../components/Select'
 import { SliceTable } from '../components/SliceTable'
 import { integer, money, percent } from '../format'
 
@@ -172,16 +173,11 @@ export function Upload({
                 Currency{' '}
                 <Help text="The currency your file is in. Taken from the file when it says so. Nothing is converted." />
               </span>
-              <select
+              <Select
                 value={state.chosenCurrency}
-                onChange={(e) => setState((s) => ({ ...s, chosenCurrency: e.target.value }))}
-              >
-                {currencyOptions(result).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setState((s) => ({ ...s, chosenCurrency: v }))}
+                options={currencyOptions(result).map((c) => ({ value: c, label: c }))}
+              />
             </label>
             <label className="control">
               <span className="label">
@@ -227,18 +223,11 @@ export function Upload({
           <h3 className="accent">Breakdown</h3>
           <label className="control">
             <span className="label">Group by</span>
-            <select
+            <Select
               value={state.groupBy}
-              onChange={(e) =>
-                setState((s) => ({ ...s, groupBy: e.target.value as DimensionKey }))
-              }
-            >
-              {dimensions.map((d) => (
-                <option key={d.key} value={d.key}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setState((s) => ({ ...s, groupBy: v as DimensionKey }))}
+              options={dimensions.map((d) => ({ value: d.key, label: d.label }))}
+            />
           </label>
           <SliceTable
             rows={view.breakdown[state.groupBy]}
