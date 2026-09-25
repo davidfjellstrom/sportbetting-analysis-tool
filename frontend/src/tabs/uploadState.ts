@@ -1,4 +1,4 @@
-import { ApiError, postUpload } from '../api/client'
+import { ApiError, postUpload, type UploadChoice } from '../api/client'
 import type { DimensionKey, UploadResponse } from '../api/types'
 
 export interface UploadState {
@@ -45,10 +45,13 @@ function defaultUnitText(result: UploadResponse): string {
  * it was accepted, so the caller can keep it for the next reload. Lives outside
  * the Upload tab because a file restored on reload is checked before anyone
  * opens that tab.
+ *
+ * An empty ``choice`` is a fresh file and resets the viewer's choices; a unit
+ * or a currency re-checks the same file and keeps the rest.
  */
 export async function checkUpload(
   file: File,
-  unit: number | undefined,
+  choice: UploadChoice,
   setState: (update: (s: UploadState) => UploadState) => void,
 ): Promise<boolean> {
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -63,23 +66,27 @@ export async function checkUpload(
   }
   setState((s) => ({ ...s, file, status: 'checking', error: undefined }))
   try {
-    const result = await postUpload(file, unit)
+    const result = await postUpload(file, choice)
     setState((s) => ({
       ...s,
       status: 'done',
       result,
-      // A fresh file resets the viewer's choices; a new unit keeps them.
-      chosenCurrency: unit === undefined ? currencyOptions(result)[0] : s.chosenCurrency,
-      unitText: unit === undefined ? defaultUnitText(result) : unit.toFixed(2),
+      chosenCurrency: result.currency.currency,
+      unitText:
+        choice.unit === undefined && choice.currency === undefined
+          ? defaultUnitText(result)
+          : result.file.unit_used.toFixed(2),
     }))
     return true
   } catch (error: unknown) {
-    setState((s) => ({
-      ...s,
-      status: 'error',
-      result: undefined,
-      error: error instanceof ApiError ? error.message : String(error),
-    }))
+    const message = error instanceof ApiError ? error.message : String(error)
+    setState((s) =>
+      // A re-check of the same file that fails — no exchange rate today, say —
+      // keeps what was already shown and says why the choice did not apply.
+      s.file === file && s.result
+        ? { ...s, status: 'done', error: message }
+        : { ...s, status: 'error', result: undefined, error: message },
+    )
     return false
   }
 }

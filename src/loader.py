@@ -363,6 +363,25 @@ def to_units(df: pd.DataFrame, unit: float) -> pd.DataFrame:
     return out
 
 
+def in_currency(df: pd.DataFrame, rate: float, code: str) -> pd.DataFrame:
+    """Express every amount of a tidy frame in another currency.
+
+    ``rate`` is how many of ``code`` one unit of the frame's currency buys.
+    Like :func:`to_units`, one constant multiplies the four money columns, so
+    ROI, fill rate and the odds ratio are untouched, and the currency column is
+    relabelled so the label cannot lie.
+    """
+    if not rate > 0:
+        raise ValueError("rate must be positive")
+    out = df.copy()
+    for col in MONEY_COLUMNS:
+        if col in out.columns:
+            out[col] = out[col] * rate
+    if "currency" in out.columns:
+        out["currency"] = code.lower()
+    return out
+
+
 def typical_stake(df: pd.DataFrame) -> float:
     """Median matched stake: the default unit, so "1 unit" reads as one bet."""
     return float(matched(df)["turnover"].median())

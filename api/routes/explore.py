@@ -43,12 +43,16 @@ async def explore_upload(
     file: Annotated[fastapi.UploadFile, File()],
     params: Annotated[explorer.ExploreParams, Depends()],
     unit: Annotated[float | None, Form(gt=0)] = None,
+    currency: Annotated[schemas.DisplayCurrency | None, Form()] = None,
 ) -> schemas.ExploreResponse:
     """Explore an uploaded file. With ``unit`` the amounts are in units of that
-    size, as on the Upload tab; without it they are in the file's currency."""
-    frame, currency = await read_upload(file, unit)
+    size, as on the Upload tab; without it they are in ``currency``, converted
+    at today's rate, or in the file's own currency."""
+    frame, currency_label = await read_upload(file, unit, currency)
     if loader.matched(frame).empty:
         return schemas.ExploreStopped(
             status="empty", message="No bet in this file was matched."
         )
-    return explorer.run(explorer.ExploreSource.for_upload(frame, currency), params)
+    return explorer.run(
+        explorer.ExploreSource.for_upload(frame, currency_label), params
+    )

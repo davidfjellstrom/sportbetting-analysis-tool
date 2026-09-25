@@ -174,11 +174,21 @@ export type ExploreResponse = ExploreOk | ExploreStopped
 
 // ---- POST /api/upload ----
 
+// 1 base = rate target: the ECB reference rate of date.
+export interface FxRate {
+  base: string
+  target: string
+  rate: number
+  date: string
+}
+
 export interface UploadFileInfo {
   name: string
   currency_in_file: string | null
   typical_stake: number | null
   unit_used: number
+  // The rate the currency view was converted at; null in the file's own currency.
+  fx: FxRate | null
 }
 
 export interface UploadView {

@@ -181,11 +181,26 @@ ExploreResponse = ExploreOk | ExploreStopped
 # ---- POST /api/upload --------------------------------------------------------
 
 
+DisplayCurrency = Literal["EUR", "USD", "SEK"]
+
+
+class FxRate(BaseModel):
+    """``1 base = rate target``: the ECB reference rate of ``date``."""
+
+    base: str
+    target: str
+    rate: float
+    date: str
+
+
 class UploadFile(BaseModel):
     name: str
     currency_in_file: str | None
     typical_stake: float | None
     unit_used: float
+    #: The rate the currency view was converted at; ``None`` when it shows the
+    #: file's own currency.
+    fx: FxRate | None
 
 
 class UploadView(BaseModel):

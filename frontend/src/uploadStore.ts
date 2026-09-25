@@ -18,6 +18,8 @@ export interface StoredUpload {
   savedAt: number
   /** The unit the viewer set, or undefined for the file's typical stake. */
   unit?: number
+  /** The currency the viewer converted to, or undefined for the file's own. */
+  currency?: string
 }
 
 /** Whether something saved at ``savedAt`` is still to be restored at ``now``. */

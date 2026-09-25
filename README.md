@@ -90,9 +90,12 @@ bucketed monthly collapses to a single point.
 
 **Upload** — check a new export. The file goes through the same loader and the
 same integrity battery as the history does; a new export is worth nothing until
-it passes the checks the old ones pass. Amounts can be read in units or in the
-currency the file says it is in — nothing is converted, the label just follows
-the file. Then: totals, how the file ran day by day (cumulative curve and signed
+it passes the checks the old ones pass. Amounts can be read in units or in a
+currency. Exports are in EUR; choose USD or SEK and every amount is converted at
+today's European Central Bank rate (fetched from frankfurter.dev, kept for an
+hour), with the rate shown under the figures. One rate for the
+whole file, so the figure is one a person can check by hand. Only the two
+currency codes are sent to the rate service, nothing from the file. Then: totals, how the file ran day by day (cumulative curve and signed
 bars), and a breakdown by any of the dimensions below. One file covers a short
 period, so every group in it is small; the captions say so, because a week of
 betting cannot settle anything.
