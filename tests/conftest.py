@@ -121,3 +121,21 @@ def df(raw_dir: Path) -> pd.DataFrame:
     import loader
 
     return loader.load_raw(raw_dir)
+
+
+#: The four columns an upload cannot do without (loader.UPLOAD_REQUIRED_COLUMNS).
+UPLOAD_REQUIRED_HEADERS = ("Event", "Event Day", "Customer turnover", "Customer P/L")
+
+
+@pytest.fixture
+def export_without(tmp_path: Path):
+    """Write the modern export with some headers left out, as Sportmarket Pro
+    does when the user deselects those groupings. Returns the path."""
+
+    def write(*headers: str) -> Path:
+        full = pd.DataFrame(RAW_ROWS, columns=RAW_HEADER)
+        path = tmp_path / "partial.csv"
+        full.drop(columns=list(headers)).to_csv(path, index=False)
+        return path
+
+    return write

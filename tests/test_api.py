@@ -17,6 +17,7 @@ import aggregations as agg
 import loader
 from api.history import History, get_history
 from api.index import app
+from conftest import RAW_HEADER, UPLOAD_REQUIRED_HEADERS
 
 
 def _reject_nan(value: str):  # pragma: no cover - only called on bad output
@@ -292,31 +293,53 @@ def test_upload_rejects_a_non_positive_unit(client, modern_csv: Path):
     assert post_csv(client, modern_csv, unit=0).status_code == 422
 
 
-def test_upload_missing_column_is_a_clear_400(client, tmp_path: Path):
-    broken = tmp_path / "broken.csv"
-    original = pd.DataFrame(
-        {
-            "Event": ["A v B"],
-            "Market": ["Football"],
-            "Market Type": ["ou"],
-            "Selection": ["over"],
-            "Country": ["Spain"],
-            "Event Type": ["normal"],
-            "Competition": ["La Liga"],
-            "Bookie": ["pinnacle"],
-            "Event Day": ["2025-03-01"],
-            "Nr of Bets": [1],
-            "Customer turnover": [10.0],
-            "Customer P/L": [-10.0],
-            "ROI": [-1.0],
-        }
-    )
-    original.to_csv(broken, index=False)  # no "Stake" column
-    response = post_csv(client, broken)
+def test_upload_missing_required_column_is_a_clear_400(client, export_without):
+    response = post_csv(client, export_without("Customer P/L"))
     assert response.status_code == 400
     detail = response.json()["detail"]
-    assert detail.startswith("broken.csv: missing required column(s) ['stake']")
+    assert detail.startswith("partial.csv: missing required column(s) ['Customer P/L']")
     assert "Got:" in detail
+
+
+def test_upload_full_export_misses_nothing(client, modern_csv: Path):
+    body = strict_json(post_csv(client, modern_csv))
+    assert body["missing_columns"] == []
+    assert [d["key"] for d in body["dimensions"]] == [d.key for d in agg.DIMENSIONS]
+
+
+def test_upload_without_grouping_columns_hides_those_dimensions(
+    client, export_without
+):
+    body = strict_json(post_csv(client, export_without("Bookie", "Country")))
+    assert body["missing_columns"] == ["Country", "Bookie"]
+    keys = [d["key"] for d in body["dimensions"]]
+    assert "bookie" not in keys and "country" not in keys
+    assert "competition" in keys
+    for view in (body["units"], body["currency"]):
+        assert set(view["breakdown"]) == set(keys)
+
+
+def test_upload_without_nr_of_bets_reports_bets_as_unknown(client, export_without):
+    body = strict_json(post_csv(client, export_without("Nr of Bets")))
+    assert body["report"]["n_bets"] is None
+    assert body["units"]["matched"]["bets"] is None
+    assert "n_bets_bucket" not in body["units"]["breakdown"]
+    for row in body["units"]["breakdown"]["market_type"]:
+        assert row["bets"] is None and row["bets_per_fixture"] is None
+        assert row["fixtures"] >= 1
+
+
+def test_upload_with_only_the_required_columns(client, export_without):
+    optional = [h for h in RAW_HEADER if h not in UPLOAD_REQUIRED_HEADERS]
+    body = strict_json(post_csv(client, export_without(*optional)))
+    assert sorted(body["missing_columns"]) == sorted(optional)
+    assert [d["key"] for d in body["dimensions"]] == ["year", "month", "weekday"]
+    assert body["units"]["matched"]["fixtures"] == 3
+    assert body["checks"]["ok"]
+    skipped = [c["name"] for c in body["checks"]["checks"] if c["detail"].startswith("skipped:")]
+    assert set(skipped) == {
+        "roi_consistent", "turnover_within_stake", "market_types_known"
+    }
 
 
 def test_upload_garbage_is_a_400_not_a_500(client, tmp_path: Path):

@@ -142,18 +142,33 @@ def with_dimensions(frame: pd.DataFrame) -> pd.DataFrame:
 
     Returns a copy; the caller's frame is left alone, which matters when that
     frame is the one cached copy of the history that every request shares.
+
+    A bucket whose source column the export left out is not added at all, so
+    :func:`available_dimensions` drops it instead of showing an empty slice.
     """
     out = frame.copy()
     out["_year"] = out["event_day"].dt.year.astype("string")
     out["_month"] = out["event_day"].dt.to_period("M").astype("string")
     out["_weekday"] = out["event_day"].dt.day_name().astype("string")
-    out["_stake_bucket"] = pd.cut(
-        out["stake"], bins=STAKE_BINS, labels=STAKE_LABELS, right=False
-    )
-    out["_n_bets_bucket"] = pd.cut(
-        out["n_bets"], bins=N_BETS_BINS, labels=N_BETS_LABELS
-    )
+    if "stake" in out.columns:
+        out["_stake_bucket"] = pd.cut(
+            out["stake"], bins=STAKE_BINS, labels=STAKE_LABELS, right=False
+        )
+    if "n_bets" in out.columns:
+        out["_n_bets_bucket"] = pd.cut(
+            out["n_bets"], bins=N_BETS_BINS, labels=N_BETS_LABELS
+        )
     return out
+
+
+def available_dimensions(frame_with_dims: pd.DataFrame) -> tuple[Dimension, ...]:
+    """The dimensions a frame can actually be grouped by.
+
+    Always all of them for the history. An upload may leave columns out, and a
+    dimension without its column is hidden rather than shown as a single
+    "(no value)" slice that looks like data.
+    """
+    return tuple(d for d in DIMENSIONS if d.column in frame_with_dims.columns)
 
 
 def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
@@ -162,9 +177,14 @@ def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     ``dropna=False`` on purpose: a material share of rows carry no
     ``selection``, and they need not perform like the rest. Dropping them
     quietly would change every total that touches the column without saying so.
+
+    Without an ``n_bets`` column, ``bets`` and ``bets_per_fixture`` are NaN:
+    a row is not a bet, so counting rows would state a number nobody knows.
     """
+    has_bets = "n_bets" in frame.columns
     grouped = (
-        frame.groupby(column, observed=True, dropna=False)
+        frame.assign(n_bets=frame["n_bets"] if has_bets else 0)
+        .groupby(column, observed=True, dropna=False)
         .agg(
             bets=("n_bets", "sum"),
             fixtures=("fixture_id", "nunique"),
@@ -174,6 +194,8 @@ def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
         .reset_index()
         .rename(columns={column: "slice"})
     )
+    if not has_bets:
+        grouped["bets"] = float("nan")
     grouped["slice"] = grouped["slice"].astype("string").fillna("(no value)")
     # Turnover-weighted: sum(pl) / sum(turnover), which is what the export's own
     # ROI column measures per row. The unweighted mean of that column is a

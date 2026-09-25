@@ -50,7 +50,9 @@ COLUMN_MAP: dict[str, str] = {
     "ROI": "roi",
 }
 
-#: Columns every export must carry.
+#: Columns every export in the history must carry. ``features.py``, ``stats.py``
+#: and ``validate.py`` group on market, market type and selection, so the
+#: history is held to the full schema.
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "event",
     "market",
@@ -67,6 +69,14 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
     "pl",
     "roi",
 )
+
+#: The least an uploaded export can carry and still be analysed honestly:
+#: ``event + event_day`` is the fixture every interval clusters on (CLAUDE.md
+#: rule 1), and ``turnover`` and ``pl`` are the result. Sportmarket Pro lets the
+#: user choose which groupings to export, so every other column is optional on
+#: upload. A column that is absent stays absent — it is never added as NaN,
+#: which would show up as one "(no value)" slice covering every row.
+UPLOAD_REQUIRED_COLUMNS: tuple[str, ...] = ("event", "event_day", "turnover", "pl")
 
 #: Not required, but kept when present. ``price_adjusted_turnover`` is
 #: populated from 2025 onwards only; ``currency`` exists so ``checks.py`` can
@@ -106,6 +116,10 @@ POSITION_KEY: tuple[str, ...] = ("event", "event_day", "market", "market_type")
 NOVELTY_MARKET_TYPES: frozenset[str] = frozenset({"cs", "score", "custom"})
 
 
+#: Internal name -> the header a person sees in their export.
+SOURCE_HEADER: dict[str, str] = {v: k for k, v in COLUMN_MAP.items()}
+
+
 class SchemaError(ValueError):
     """Raised when an export does not look like a Sportmarket Pro CSV."""
 
@@ -116,7 +130,9 @@ class LoadReport:
 
     files: tuple[str, ...]
     n_rows: int
-    n_bets: int
+    #: ``None`` when the export has no ``Nr of Bets``: a row is not a bet, so
+    #: the count is unknown rather than the number of rows.
+    n_bets: int | None
     n_fixtures: int
     n_unmatched_rows: int
     turnover: float
@@ -130,9 +146,10 @@ class LoadReport:
             if self.date_min is not None
             else "empty"
         )
+        bets = "unknown" if self.n_bets is None else f"{self.n_bets:,}"
         return (
             f"{len(self.files)} file(s), {self.n_rows:,} rows "
-            f"({self.n_bets:,} bets, {self.n_fixtures:,} fixtures), {span}\n"
+            f"({bets} bets, {self.n_fixtures:,} fixtures), {span}\n"
             f"  turnover {self.turnover:,.0f} | unmatched rows "
             f"{self.n_unmatched_rows:,} ({self.unmatched_row_share:.1%})\n"
             f"  price-adjusted turnover on {self.price_adjusted_coverage:.1%} of rows"
@@ -153,13 +170,28 @@ def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=renamed)
 
 
-def _check_schema(df: pd.DataFrame, source: str) -> None:
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+def _check_schema(
+    df: pd.DataFrame, source: str, required: tuple[str, ...] = REQUIRED_COLUMNS
+) -> None:
+    missing = [SOURCE_HEADER[c] for c in required if c not in df.columns]
     if missing:
         raise SchemaError(
             f"{source}: missing required column(s) {missing}. "
             f"Got: {sorted(df.columns)}"
         )
+
+
+def missing_columns(df: pd.DataFrame) -> tuple[str, ...]:
+    """Export headers absent from a loaded frame, in export order.
+
+    Only an upload can be missing any: the history is loaded against the full
+    schema. Callers report these so a skipped analysis is never a silent one.
+    """
+    return tuple(
+        SOURCE_HEADER[c]
+        for c in (*REQUIRED_COLUMNS, *OPTIONAL_COLUMNS)
+        if c not in df.columns
+    )
 
 
 def _coerce_types(df: pd.DataFrame) -> pd.DataFrame:
@@ -171,7 +203,8 @@ def _coerce_types(df: pd.DataFrame) -> pd.DataFrame:
     df["event_day"] = pd.to_datetime(df["event_day"], errors="coerce", format="mixed")
 
     for col in ("event", "market"):
-        df[col] = df[col].astype("string").str.strip()
+        if col in df.columns:
+            df[col] = df[col].astype("string").str.strip()
     for col in CATEGORICAL_COLUMNS:
         if col in df.columns:
             df[col] = (
@@ -197,10 +230,12 @@ def add_fixture_id(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _build(raw: pd.DataFrame, source: str) -> pd.DataFrame:
+def _build(
+    raw: pd.DataFrame, source: str, required: tuple[str, ...] = REQUIRED_COLUMNS
+) -> pd.DataFrame:
     """Normalise one export, whatever it was read from. Drops nothing."""
     df = normalise_columns(raw)
-    _check_schema(df, source)
+    _check_schema(df, source, required)
     df = _coerce_types(df)
     df = add_fixture_id(df)
     df["source_file"] = source
@@ -224,8 +259,11 @@ def load_upload(buffer, name: str) -> pd.DataFrame:
     Same pipeline as :func:`load_file`; the filename is passed separately
     because a buffer has no path to take it from, and ``source_file`` is what
     tells a merged frame which rows arrived this way.
+
+    Only :data:`UPLOAD_REQUIRED_COLUMNS` are required; see
+    :func:`missing_columns` for what the file left out.
     """
-    return _build(pd.read_csv(buffer), name)
+    return _build(pd.read_csv(buffer), name, UPLOAD_REQUIRED_COLUMNS)
 
 
 def load_raw(
@@ -267,7 +305,12 @@ def unmatched(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def fill_rate(df: pd.DataFrame) -> float:
-    """Turnover-weighted fill rate: matched turnover / intended stake."""
+    """Turnover-weighted fill rate: matched turnover / intended stake.
+
+    NaN when the export has no ``Stake`` column.
+    """
+    if "stake" not in df.columns:
+        return float("nan")
     stake = float(df["stake"].sum())
     return float(df["turnover"].sum()) / stake if stake else float("nan")
 
@@ -292,7 +335,7 @@ def describe(df: pd.DataFrame, files: tuple[str, ...] = ()) -> LoadReport:
     return LoadReport(
         files=files,
         n_rows=len(df),
-        n_bets=int(df["n_bets"].fillna(0).sum()),
+        n_bets=int(df["n_bets"].fillna(0).sum()) if "n_bets" in df.columns else None,
         n_fixtures=int(df["fixture_id"].nunique()) if "fixture_id" in df else 0,
         n_unmatched_rows=int((df["turnover"].fillna(0) <= 0).sum()),
         turnover=float(df["turnover"].fillna(0).sum()),

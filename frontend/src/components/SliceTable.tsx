@@ -1,5 +1,5 @@
 import type { SliceRow } from '../api/types'
-import { fixed, integer, signed, tableMoney } from '../format'
+import { UNKNOWN, fixed, integer, signed, tableMoney } from '../format'
 import { Help } from './Help'
 
 export function SliceTable({
@@ -34,9 +34,11 @@ export function SliceTable({
           {rows.map((r) => (
             <tr key={r.slice}>
               <td>{r.slice}</td>
-              <td className="num">{integer(r.bets)}</td>
+              <td className="num">{r.bets === null ? UNKNOWN : integer(r.bets)}</td>
               <td className="num">{integer(r.fixtures)}</td>
-              <td className="num">{fixed(r.bets_per_fixture, 2)}</td>
+              <td className="num">
+                {r.bets_per_fixture === null ? UNKNOWN : fixed(r.bets_per_fixture, 2)}
+              </td>
               <td className="num">{tableMoney(r.turnover, currency)}</td>
               <td className="num">{tableMoney(r.pl, currency)}</td>
               <td className="num">{signed(r.roi_pct, 2)}%</td>

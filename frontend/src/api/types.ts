@@ -40,7 +40,8 @@ export interface CheckReport {
 
 export interface LoadReport {
   n_rows: number
-  n_bets: number
+  // null when an upload has no "Nr of Bets"; a row is not a bet.
+  n_bets: number | null
   n_fixtures: number
   n_unmatched_rows: number
   unmatched_row_share: number
@@ -53,7 +54,7 @@ export interface LoadReport {
 export interface Totals {
   turnover: number
   pl: number
-  bets: number
+  bets: number | null
   fixtures: number
 }
 
@@ -73,9 +74,9 @@ export interface PeriodSeries {
 
 export interface SliceRow {
   slice: string
-  bets: number
+  bets: number | null
   fixtures: number
-  bets_per_fixture: number
+  bets_per_fixture: number | null
   turnover: number
   pl: number
   roi_pct: number
@@ -177,13 +178,18 @@ export interface UploadView {
   currency: string
   matched: Totals
   cumulative: PeriodSeries
-  breakdown: Record<DimensionKey, SliceRow[]>
+  // Keyed by the dimensions in UploadResponse.dimensions only.
+  breakdown: Partial<Record<DimensionKey, SliceRow[]>>
 }
 
 export interface UploadResponse {
   file: UploadFileInfo
   checks: CheckReport
   report: LoadReport
+  // What this file can be grouped by; a subset when it left columns out.
+  dimensions: LabelledKey[]
+  // Export headers the file did not carry, e.g. ["Bookie"].
+  missing_columns: string[]
   units: UploadView
   currency: UploadView
 }

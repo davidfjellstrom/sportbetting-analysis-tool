@@ -28,6 +28,9 @@ export function signed(value: number, decimals = 0): string {
   return sign + fixed(Math.abs(value), decimals)
 }
 
+/** A figure the export did not carry: shown as a dash, never as zero. */
+export const UNKNOWN = '—'
+
 /** Python's `f"{value:,}"` on an integer. */
 export function integer(value: number): string {
   return fixed(value, 0)

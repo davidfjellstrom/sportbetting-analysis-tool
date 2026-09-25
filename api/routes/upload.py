@@ -57,6 +57,7 @@ async def upload(
     unit_used = unit if unit is not None else (typical_stake or 1.0)
 
     file_currency = agg.currency_code(frame)
+    dimensions = agg.available_dimensions(agg.with_dimensions(frame))
     currency_in_file = (
         None if "currency" not in frame.columns or file_currency == "units"
         else file_currency
@@ -70,6 +71,10 @@ async def upload(
         ),
         checks=serialise.check_report(checks.run_checks(frame)),
         report=serialise.load_report(loader.describe(frame)),
+        dimensions=[
+            schemas.LabelledKey(key=d.key, label=d.label) for d in dimensions
+        ],
+        missing_columns=list(loader.missing_columns(frame)),
         units=_view(loader.to_units(frame, unit_used), "units"),
         currency=_view(frame, file_currency),
     )

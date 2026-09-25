@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ApiError, postUpload } from '../api/client'
-import type { DimensionKey, LabelledKey, UploadResponse } from '../api/types'
+import type { DimensionKey, UploadResponse } from '../api/types'
 import type { UploadState } from './uploadState'
 import { cumulativeSpec } from '../charts/cumulative'
 import { plBarsSpec } from '../charts/plBars'
@@ -11,7 +11,7 @@ import { LazyChart } from '../components/LazyChart'
 import { Metric, MetricRow } from '../components/Metric'
 import { Select } from '../components/Select'
 import { SliceTable } from '../components/SliceTable'
-import { integer, money, percent } from '../format'
+import { UNKNOWN, integer, money, percent } from '../format'
 
 // Currencies an uploader can label their file with. A file whose currency
 // column names something else gets that added at the front of the list.
@@ -28,6 +28,20 @@ function currencyOptions(result: UploadResponse): string[] {
   return options
 }
 
+// "A", "A or B", "A, B or C": the missing columns, read as a sentence.
+function listed(items: string[]): string {
+  return items.length < 2
+    ? items.join('')
+    : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`
+}
+
+// The file's own dimensions: a column the export left out has no dimension,
+// so a choice carried over from an earlier file may not exist here.
+function groupByFor(result: UploadResponse, wanted: DimensionKey): DimensionKey {
+  const keys = result.dimensions.map((d) => d.key as DimensionKey)
+  return keys.includes(wanted) ? wanted : keys[0]
+}
+
 function defaultUnitText(result: UploadResponse): string {
   return result.file.typical_stake === null ? '1.00' : result.file.typical_stake.toFixed(2)
 }
@@ -35,11 +49,9 @@ function defaultUnitText(result: UploadResponse): string {
 export function Upload({
   state,
   setState,
-  dimensions,
 }: {
   state: UploadState
   setState: (update: (s: UploadState) => UploadState) => void
-  dimensions: LabelledKey[]
 }) {
   const [unitDraft, setUnitDraft] = useState<string | null>(null)
 
@@ -93,8 +105,9 @@ export function Upload({
     [view, cur],
   )
   const bars = useMemo(() => (view ? plBarsSpec(view.cumulative, cur) : null), [view, cur])
+  const groupBy = result ? groupByFor(result, state.groupBy) : state.groupBy
   const dimensionLabel =
-    dimensions.find((d) => d.key === state.groupBy)?.label ?? state.groupBy
+    result?.dimensions.find((d) => d.key === groupBy)?.label ?? groupBy
 
   return (
     <>
@@ -130,20 +143,23 @@ export function Upload({
 
       {result && view && cumulative && bars && (
         <>
-          {result.checks.ok ? (
-            <details className="expander" key={`${result.file.name}:${result.report.n_rows}`}>
-              <summary>
-                {result.checks.checks.length} integrity checks passed
-                {result.checks.n_warnings ? `, ${result.checks.n_warnings} warning(s)` : ''}
-              </summary>
-              <CheckTable report={result.checks} />
-              <p className="caption">Problems are reported, never fixed automatically.</p>
-            </details>
-          ) : (
+          {/* Silent when the checks pass, as for the history: a user has no use
+              for a list of green ticks. A failure still stops them, because no
+              figure below it can be trusted. */}
+          {!result.checks.ok && (
             <>
               <CheckFailureBanner report={result.checks} />
               <CheckTable report={result.checks} />
             </>
+          )}
+
+          {result.missing_columns.length > 0 && (
+            <Alert kind="info" icon="🧩">
+              For your information, this file has no {listed(result.missing_columns)}{' '}
+              {result.missing_columns.length > 1 ? 'columns' : 'column'} — add{' '}
+              {result.missing_columns.length > 1 ? 'them' : 'it'} to your export to get
+              the most out of the tool.
+            </Alert>
           )}
 
           <div className="controls three">
@@ -198,7 +214,10 @@ export function Upload({
           <MetricRow>
             <Metric label={`Matched turnover (${cur})`} value={money(view.matched.turnover, cur)} />
             <Metric label={`P/L (${cur})`} value={money(view.matched.pl, cur, 0, true)} />
-            <Metric label="Bets" value={integer(result.report.n_bets)} />
+            <Metric
+              label="Bets"
+              value={result.report.n_bets === null ? UNKNOWN : integer(result.report.n_bets)}
+            />
             <Metric label="Matches" value={integer(result.report.n_fixtures)} />
           </MetricRow>
           <p className="caption">
@@ -220,13 +239,13 @@ export function Upload({
           <label className="control">
             <span className="label">Group by</span>
             <Select
-              value={state.groupBy}
+              value={groupBy}
               onChange={(v) => setState((s) => ({ ...s, groupBy: v as DimensionKey }))}
-              options={dimensions.map((d) => ({ value: d.key, label: d.label }))}
+              options={result.dimensions.map((d) => ({ value: d.key, label: d.label }))}
             />
           </label>
           <SliceTable
-            rows={view.breakdown[state.groupBy]}
+            rows={view.breakdown[groupBy] ?? []}
             dimensionLabel={dimensionLabel}
             currency={cur}
           />

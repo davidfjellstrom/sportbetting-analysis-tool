@@ -401,6 +401,14 @@ with upload:
 
     if file is not None and new is not None:
         render_checks(checks.run_checks(new))
+        missing = loader.missing_columns(new)
+        if missing:
+            st.info(
+                f"This file has no {', '.join(missing)} "
+                f"column{'s' if len(missing) > 1 else ''}. Everything that "
+                "needs them is left out below rather than guessed.",
+                icon="🧩",
+            )
         # The uploader chooses how to see their own money. Units by default,
         # like the rest of the app; the currency view shows the file's amounts
         # as they are, labelled with the currency the file says it is in. No
@@ -446,7 +454,9 @@ with upload:
             f"P/L ({new_cur})",
             money(new_matched["pl"].sum(), new_cur, signed=True),
         )
-        u3.metric("Bets", f"{new_report.n_bets:,}")
+        u3.metric(
+            "Bets", "—" if new_report.n_bets is None else f"{new_report.n_bets:,}"
+        )
         u4.metric("Matches", f"{new_report.n_fixtures:,}")
         st.caption(
             f"{new_report.n_rows:,} rows, "
@@ -469,11 +479,17 @@ with upload:
         )
 
         st.subheader(":blue[Breakdown]")
-        upload_dim = st.selectbox("Group by", list(DIMENSIONS), key="upload_dim")
+        new_with_dims = _with_dimensions(new_matched)
+        # Only what this file can be grouped by: a column the export left out
+        # has no dimension, rather than one "(no value)" slice covering it all.
+        upload_dims = {
+            d.label: d.column for d in agg.available_dimensions(new_with_dims)
+        }
+        upload_dim = st.selectbox("Group by", list(upload_dims), key="upload_dim")
         st.dataframe(
-            _aggregate(
-                _with_dimensions(new_matched), DIMENSIONS[upload_dim]
-            ).sort_values("turnover", ascending=False),
+            _aggregate(new_with_dims, upload_dims[upload_dim]).sort_values(
+                "turnover", ascending=False
+            ),
             width="stretch",
             hide_index=True,
             column_config=slice_columns(upload_dim, new_cur),

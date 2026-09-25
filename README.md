@@ -95,6 +95,15 @@ bars), and a breakdown by any of the dimensions below. One file covers a short
 period, so every group in it is small; the captions say so, because a week of
 betting cannot settle anything.
 
+Sportmarket Pro lets you choose which groupings to export, so an upload needs
+only four columns: `Event` and `Event Day` (the match every figure is clustered
+on) and `Customer turnover` and `Customer P/L` (the result). Every other column
+is optional. One that is missing is named on screen, its dimension leaves the
+breakdown, and any check that needs it is listed as skipped. Nothing is filled
+in: without `Nr of Bets` the bet count reads "—", not the number of rows. The
+history in `data/processed/` is still held to the full schema, because the
+analysis modules group on market, market type and selection.
+
 **Explore** — the segment explorer, and the part of the app that does the most
 work. Filter on fixture date, stake range, market type and bookie; group by
 market type, selection, bookie, country, competition, market, event type, stake

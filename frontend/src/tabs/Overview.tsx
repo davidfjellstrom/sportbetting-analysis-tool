@@ -3,7 +3,7 @@ import type { OverviewResponse } from '../api/types'
 import { cumulativeSpec } from '../charts/cumulative'
 import { LazyChart } from '../components/LazyChart'
 import { Metric, MetricRow } from '../components/Metric'
-import { formatMonth, integer, money, percent } from '../format'
+import { UNKNOWN, formatMonth, integer, money, percent } from '../format'
 
 export function Overview({ data }: { data: OverviewResponse }) {
   const cur = data.currency
@@ -29,7 +29,10 @@ export function Overview({ data }: { data: OverviewResponse }) {
       </MetricRow>
       <MetricRow>
         <Metric label="Rows" value={integer(data.report.n_rows)} />
-        <Metric label="Bets" value={integer(data.report.n_bets)} />
+        <Metric
+          label="Bets"
+          value={data.report.n_bets === null ? UNKNOWN : integer(data.report.n_bets)}
+        />
         <Metric label="Matches" value={integer(data.report.n_fixtures)} />
         <Metric label="Unmatched rows" value={integer(data.report.n_unmatched_rows)} />
       </MetricRow>

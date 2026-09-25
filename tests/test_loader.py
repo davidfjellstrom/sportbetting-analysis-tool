@@ -110,3 +110,56 @@ def test_write_units_output_reloads_through_the_same_pipeline(raw_dir, tmp_path)
     # The unit is nowhere in the output.
     for path in out_dir.glob("*.csv"):
         assert f"{unit}" not in path.read_text()
+
+
+# --------------------------------------------------------------------------
+# Uploads: only four columns required, the rest optional
+# --------------------------------------------------------------------------
+
+
+def _upload(path):
+    with path.open("rb") as fh:
+        return loader.load_upload(fh, path.name)
+
+
+def test_upload_needs_only_fixture_and_result_columns(export_without):
+    from conftest import RAW_HEADER, UPLOAD_REQUIRED_HEADERS
+
+    optional = [h for h in RAW_HEADER if h not in UPLOAD_REQUIRED_HEADERS]
+    df = _upload(export_without(*optional))
+    assert set(loader.UPLOAD_REQUIRED_COLUMNS) <= set(df.columns)
+    assert df["fixture_id"].nunique() == 3
+
+
+@pytest.mark.parametrize(
+    "header", ["Event", "Event Day", "Customer turnover", "Customer P/L"]
+)
+def test_upload_without_a_required_column_raises_naming_it(export_without, header):
+    with pytest.raises(loader.SchemaError, match=f"\\['{header}'\\]"):
+        _upload(export_without(header))
+
+
+def test_absent_optional_column_stays_absent_not_nan(export_without):
+    df = _upload(export_without("Bookie", "Selection"))
+    assert "bookie" not in df.columns
+    assert "selection" not in df.columns
+    assert loader.missing_columns(df) == ("Selection", "Bookie")
+
+
+def test_full_export_misses_nothing(modern_csv):
+    assert loader.missing_columns(loader.load_file(modern_csv)) == ()
+
+
+def test_history_still_requires_every_column(export_without):
+    with pytest.raises(loader.SchemaError, match="Bookie"):
+        loader.load_file(export_without("Bookie"))
+
+
+def test_describe_without_n_bets_reports_bets_as_unknown(export_without):
+    report = loader.describe(_upload(export_without("Nr of Bets")))
+    assert report.n_bets is None
+    assert "unknown bets" in str(report)
+
+
+def test_fill_rate_without_stake_is_nan(export_without):
+    assert pd.isna(loader.fill_rate(_upload(export_without("Stake"))))
