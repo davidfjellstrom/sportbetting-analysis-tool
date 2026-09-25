@@ -10,8 +10,9 @@ you win on, whether your big bets do better than your small ones, and where the
 losses come from.
 
 Upload your own export and get the same view of your own betting in seconds.
-Nothing is stored — the file is checked in memory and forgotten as soon as the
-answer is sent back.
+The server stores nothing — the file is checked in memory and forgotten as soon
+as the answer is sent back. Your browser keeps a copy for 24 hours so a reload
+does not lose it, and a button removes it sooner.
 
 What makes it different: it is built to be skeptical. Bets on the same match
 win or lose together, a hot league is usually just a lucky month, and if you
@@ -30,7 +31,8 @@ The app runs on two kinds of input:
   files are committed; the raw ones never are.
 - **A single file.** The Upload tab takes any Sportmarket Pro CSV, runs the same
   integrity battery on it, and reports how that file went. It is shown on its
-  own and never merged into the loaded history.
+  own and never merged into the loaded history: once a file is in, Explore
+  works on that file alone, and Overview keeps showing the history.
 
 No results are published in this repository. Every figure the app shows is
 computed from the files currently under `data/`, by the code in `src/`, with the
@@ -103,6 +105,16 @@ breakdown, and any check that needs it is listed as skipped. Nothing is filled
 in: without `Nr of Bets` the bet count reads "—", not the number of rows. The
 history in `data/processed/` is still held to the full schema, because the
 analysis modules group on market, market type and selection.
+
+Once a file is uploaded, **Explore** explores that file instead of the history,
+with filters and groupings for the columns it has. The server keeps nothing
+between requests, so the browser sends the file along with every change of
+filter; it is explored by the same code as the history, never mixed with it.
+Curves run by day rather than by month, and a group earns one with 2% of the
+file's turnover and 20 matches, since the history's bars would leave a month
+of betting with none. The browser keeps the file (IndexedDB, on the viewer's
+own machine) for 24 hours, so a reload restores it; **Remove file** on the
+Upload tab forgets it and brings the history back.
 
 **Explore** — the segment explorer, and the part of the app that does the most
 work. Filter on fixture date, stake range, market type and bookie; group by
@@ -295,6 +307,7 @@ path as a raw export.
 `data/raw/` is gitignored, as is `reports/`; `data/processed/` is committed,
 because it is what the deployed app reads and it contains no amount in any
 currency. There is no toggle back to currency for the loaded history; someone
-who uploads their own export chooses units or currency for that file alone,
-and it is held in memory only for as long as the request takes. The method is
+who uploads their own export chooses units or currency for that file alone.
+The server holds it in memory only for as long as a request takes; the only
+copy that lasts is in the uploader's own browser, for 24 hours at most. The method is
 what is on display, not the amounts.

@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ApiError, getExploreOptions, getOverview } from './api/client'
-import type { ExploreOptions, OverviewResponse } from './api/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ApiError,
+  getExplore,
+  getExploreOptions,
+  getOverview,
+  postExploreUpload,
+} from './api/client'
+import type { ExploreOptions, ExploreQuery, OverviewResponse } from './api/types'
 import { Alert } from './components/Alert'
 import { HistoryChecks } from './components/CheckReport'
 import { Tabs } from './components/Tabs'
@@ -8,7 +14,8 @@ import { Overview } from './tabs/Overview'
 import { Explore } from './tabs/Explore'
 import { initialExploreState, type ExploreState } from './tabs/exploreState'
 import { Upload } from './tabs/Upload'
-import { INITIAL_UPLOAD_STATE, type UploadState } from './tabs/uploadState'
+import { INITIAL_UPLOAD_STATE, checkUpload, type UploadState } from './tabs/uploadState'
+import { clearUpload, loadUpload, saveUpload } from './uploadStore'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -32,6 +39,64 @@ export default function App() {
   const updateExplore = useCallback(
     (update: (s: ExploreState) => ExploreState) =>
       setExplore((s) => (s === null ? s : update(s))),
+    [],
+  )
+
+  // ---- the uploaded file --------------------------------------------------
+  // Once a file is in, Explore works on that file alone; Overview keeps the
+  // history. The file is kept in this browser (uploadStore) so a reload
+  // restores it; the server never keeps it.
+
+  const onCheck = useCallback((file: File, unit?: number) => {
+    void checkUpload(file, unit, setUpload).then((accepted) => {
+      if (accepted) void saveUpload({ file, savedAt: Date.now(), unit })
+    })
+  }, [])
+
+  const onRemove = useCallback(() => {
+    setUpload(INITIAL_UPLOAD_STATE)
+    void clearUpload()
+  }, [])
+
+  useEffect(() => {
+    void loadUpload().then((stored) => {
+      if (stored) onCheck(stored.file, stored.unit)
+    })
+  }, [onCheck])
+
+  const uploaded = upload.status === 'done' ? upload.result : undefined
+  const uploadView =
+    uploaded && (upload.display === 'Units' ? uploaded.units : uploaded.currency)
+  const uploadUnit = upload.display === 'Units' ? uploaded?.file.unit_used : undefined
+  const uploadOptions = useMemo(() => {
+    const options = uploadView?.explore_options ?? null
+    // In the currency view the amounts carry the label the viewer chose.
+    return options && upload.display === 'Currency'
+      ? { ...options, currency: upload.chosenCurrency }
+      : options
+  }, [uploadView, upload.display, upload.chosenCurrency])
+  const uploadFile = upload.file
+  const fetchUpload = useCallback(
+    (query: ExploreQuery) => postExploreUpload(uploadFile!, uploadUnit, query),
+    [uploadFile, uploadUnit],
+  )
+
+  // The explorer's filters start over for each file, unit and view, because
+  // their ranges (dates, stakes, groupings) come from the data being explored.
+  const uploadKey =
+    uploadFile && uploadOptions
+      ? `${uploadFile.name}:${uploadFile.size}:${uploadFile.lastModified}:${upload.display}:${uploadUnit}`
+      : null
+  const [uploadExplore, setUploadExplore] = useState<{
+    key: string
+    state: ExploreState
+  } | null>(null)
+  if (uploadKey && uploadOptions && uploadExplore?.key !== uploadKey) {
+    setUploadExplore({ key: uploadKey, state: initialExploreState(uploadOptions) })
+  }
+  const updateUploadExplore = useCallback(
+    (update: (s: ExploreState) => ExploreState) =>
+      setUploadExplore((u) => (u === null ? u : { ...u, state: update(u.state) })),
     [],
   )
 
@@ -77,11 +142,41 @@ export default function App() {
           <section className="tab-panel" role="tabpanel">
             {tab === 'overview' && <Overview data={loaded.overview} />}
             {tab === 'upload' && (
-              <Upload state={upload} setState={setUpload} />
+              <Upload
+                state={upload}
+                setState={setUpload}
+                onCheck={onCheck}
+                onRemove={onRemove}
+              />
             )}
-            {tab === 'explore' && explore && (
-              <Explore state={explore} setState={updateExplore} options={loaded.options} />
-            )}
+            {tab === 'explore' &&
+              (upload.status === 'checking' ? (
+                <div className="loading">Checking {upload.file?.name}…</div>
+              ) : uploaded && !uploadOptions ? (
+                <Alert kind="info" icon="📄">
+                  No bet in {uploadFile?.name} was matched, so there is nothing to explore.
+                  Remove it on the Upload tab to explore the full history again.
+                </Alert>
+              ) : uploaded && uploadOptions && uploadExplore?.key === uploadKey ? (
+                <Explore
+                  key={uploadKey}
+                  state={uploadExplore.state}
+                  setState={updateUploadExplore}
+                  options={uploadOptions}
+                  fetchExplore={fetchUpload}
+                  fileName={uploadFile?.name}
+                />
+              ) : (
+                explore && (
+                  <Explore
+                    key="history"
+                    state={explore}
+                    setState={updateExplore}
+                    options={loaded.options}
+                    fetchExplore={getExplore}
+                  />
+                )
+              ))}
           </section>
         </>
       )}

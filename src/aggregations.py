@@ -102,6 +102,13 @@ N_BETS_LABELS: list[str] = ["1", "2", "3+"]
 SMALL_MULTIPLE_MIN_TURNOVER = 350.0  # units; roughly 0.3% of lifetime turnover
 SMALL_MULTIPLE_MIN_BETS = 2_000
 
+#: An uploaded file is a few weeks, not four years, so the absolute bars above
+#: would leave it without a single curve. For a file the bar scales with it: a
+#: share of its turnover, and a floor on matches rather than bets — matches are
+#: the independent unit (CLAUDE.md rule 3), and a file may not carry bet counts.
+UPLOAD_CURVE_MIN_TURNOVER_SHARE = 0.02
+UPLOAD_CURVE_MIN_FIXTURES = 20
+
 #: Eight is the hard ceiling for series on one chart: the categorical palette
 #: has eight validated slots, and a ninth would have to fold into "Other".
 MAX_SERIES = 8
@@ -218,12 +225,44 @@ def sort_table(table: pd.DataFrame, sort: Sort) -> pd.DataFrame:
     return table.sort_values(sort.column, ascending=sort.ascending)
 
 
-def eligible_for_curves(table_all: pd.DataFrame) -> pd.DataFrame:
+@dataclass(frozen=True)
+class CurveRule:
+    """What a slice needs before it gets its own cumulative curve.
+
+    ``None`` means that bar does not apply. Every bar that does apply must be
+    met, for the reason given at :data:`SMALL_MULTIPLE_MIN_TURNOVER`.
+    """
+
+    min_turnover: float
+    min_bets: int | None = None
+    min_fixtures: int | None = None
+
+
+def history_curve_rule() -> CurveRule:
+    """The bars for the four-year history. Read at call time, not import time."""
+    return CurveRule(SMALL_MULTIPLE_MIN_TURNOVER, min_bets=SMALL_MULTIPLE_MIN_BETS)
+
+
+def upload_curve_rule(frame: pd.DataFrame) -> CurveRule:
+    """The bars for one uploaded file, scaled to its matched turnover."""
+    turnover = float(frame["turnover"].sum())
+    return CurveRule(
+        round(UPLOAD_CURVE_MIN_TURNOVER_SHARE * turnover, 2),
+        min_fixtures=UPLOAD_CURVE_MIN_FIXTURES,
+    )
+
+
+def eligible_for_curves(
+    table_all: pd.DataFrame, rule: CurveRule | None = None
+) -> pd.DataFrame:
     """The slices big enough for a cumulative curve, largest first."""
-    return table_all[
-        (table_all["turnover"] >= SMALL_MULTIPLE_MIN_TURNOVER)
-        & (table_all["bets"] >= SMALL_MULTIPLE_MIN_BETS)
-    ].sort_values("turnover", ascending=False)
+    rule = rule or history_curve_rule()
+    keep = table_all["turnover"] >= rule.min_turnover
+    if rule.min_bets is not None:
+        keep &= table_all["bets"] >= rule.min_bets
+    if rule.min_fixtures is not None:
+        keep &= table_all["fixtures"] >= rule.min_fixtures
+    return table_all[keep].sort_values("turnover", ascending=False)
 
 
 # --------------------------------------------------------------------------
@@ -252,31 +291,38 @@ class Filters:
     bookies: tuple[str, ...] = field(default_factory=tuple)
 
 
-def stake_ceiling(frame: pd.DataFrame) -> float:
-    """Whole units, at or above every stake, so a default filter excludes nothing."""
+def stake_ceiling(frame: pd.DataFrame) -> float | None:
+    """Whole units, at or above every stake, so a default filter excludes nothing.
+
+    ``None`` when the export has no ``Stake`` column: there is nothing to filter on.
+    """
+    if "stake" not in frame.columns:
+        return None
     return float(math.ceil(frame["stake"].max()))
 
 
 def apply_filters(
-    frame: pd.DataFrame, filters: Filters, ceiling: float
+    frame: pd.DataFrame, filters: Filters, ceiling: float | None
 ) -> pd.DataFrame:
-    max_stake = ceiling if filters.max_stake is None else filters.max_stake
-    if max_stake < filters.min_stake:
-        raise StakeRangeError(
-            f"Maximum stake ({max_stake:,.2f}) is below the minimum "
-            f"({filters.min_stake:,.2f}) — no row can satisfy both."
-        )
+    """Narrow a frame down. Stake bounds are ignored when there is no stake."""
+    if "stake" in frame.columns and ceiling is not None:
+        max_stake = ceiling if filters.max_stake is None else filters.max_stake
+        if max_stake < filters.min_stake:
+            raise StakeRangeError(
+                f"Maximum stake ({max_stake:,.2f}) is below the minimum "
+                f"({filters.min_stake:,.2f}) — no row can satisfy both."
+            )
+        if filters.min_stake:
+            frame = frame[frame["stake"] >= filters.min_stake]
+        if max_stake < ceiling:
+            frame = frame[frame["stake"] <= max_stake]
     if filters.date_from is not None:
         frame = frame[frame["event_day"] >= pd.Timestamp(filters.date_from)]
     if filters.date_to is not None:
         frame = frame[frame["event_day"] <= pd.Timestamp(filters.date_to)]
-    if filters.min_stake:
-        frame = frame[frame["stake"] >= filters.min_stake]
-    if max_stake < ceiling:
-        frame = frame[frame["stake"] <= max_stake]
-    if filters.market_types:
+    if filters.market_types and "market_type" in frame.columns:
         frame = frame[frame["market_type"].astype("string").isin(filters.market_types)]
-    if filters.bookies:
+    if filters.bookies and "bookie" in frame.columns:
         frame = frame[frame["bookie"].astype("string").isin(filters.bookies)]
     return frame
 
@@ -291,6 +337,16 @@ def option_values(frame: pd.DataFrame, column: str) -> list[str]:
 # --------------------------------------------------------------------------
 
 
+def curve_freq(frame: pd.DataFrame) -> str:
+    """``"D"`` for a frame spanning under a quarter, ``"M"`` otherwise.
+
+    Decide it once on the unfiltered frame: a filter narrowing the dates should
+    not flip the resolution of a chart the person is already reading.
+    """
+    span = frame["event_day"].max() - frame["event_day"].min()
+    return "D" if span <= DAILY_BUCKET_MAX_SPAN else "M"
+
+
 def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
     """Turnover, P/L and running P/L per bucket, plus how to label a bucket.
 
@@ -299,10 +355,9 @@ def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
     daily axis repeating the same year on every tick just collides with
     itself), the tooltip the unambiguous one.
     """
-    span = frame["event_day"].max() - frame["event_day"].min()
     freq, fmt, tick_fmt, label = (
         ("D", "%d %b %Y", "%d %b", "Day")
-        if span <= DAILY_BUCKET_MAX_SPAN
+        if curve_freq(frame) == "D"
         else ("M", "%b %Y", "%b %Y", "Month")
     )
     out = (
@@ -317,8 +372,13 @@ def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
     return out, tick_fmt, label
 
 
-def cumulative_by_slice(frame: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Monthly running P/L and running ROI per slice, for the comparison chart.
+def cumulative_by_slice(
+    frame: pd.DataFrame, column: str, freq: str = "M"
+) -> pd.DataFrame:
+    """Running P/L and running ROI per slice and period, for the comparison chart.
+
+    Monthly by default; ``freq="D"`` for a short upload, where months would
+    leave one point per curve. The period column is called ``month`` either way.
 
     Running **ROI**, not only running P/L in currency: a large segment draws a
     tall P/L curve merely by being large, which compares size rather than
@@ -327,7 +387,7 @@ def cumulative_by_slice(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     positive number, noise keeps wandering.
     """
     monthly = (
-        frame.assign(month=frame["event_day"].dt.to_period("M"))
+        frame.assign(month=frame["event_day"].dt.to_period(freq))
         .groupby([column, "month"], observed=True, dropna=False)[["turnover", "pl"]]
         .sum()
         .reset_index()

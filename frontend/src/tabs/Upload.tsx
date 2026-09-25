@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ApiError, postUpload } from '../api/client'
 import type { DimensionKey, UploadResponse } from '../api/types'
-import type { UploadState } from './uploadState'
+import { currencyOptions, type UploadState } from './uploadState'
 import { cumulativeSpec } from '../charts/cumulative'
 import { plBarsSpec } from '../charts/plBars'
 import { Alert } from '../components/Alert'
@@ -12,21 +11,6 @@ import { Metric, MetricRow } from '../components/Metric'
 import { Select } from '../components/Select'
 import { SliceTable } from '../components/SliceTable'
 import { UNKNOWN, integer, money, percent } from '../format'
-
-// Currencies an uploader can label their file with. A file whose currency
-// column names something else gets that added at the front of the list.
-const DISPLAY_CURRENCIES = ['EUR', 'USD', 'SEK']
-
-// Vercel rejects a request body above this before the API sees it; saying so
-// here is clearer than a bare 413.
-const MAX_UPLOAD_BYTES = 4.5 * 1024 * 1024
-
-function currencyOptions(result: UploadResponse): string[] {
-  const fileCur = result.file.currency_in_file
-  const options = DISPLAY_CURRENCIES.filter((c) => c !== fileCur)
-  if (fileCur) options.unshift(fileCur)
-  return options
-}
 
 // "A", "A or B", "A, B or C": the missing columns, read as a sentence.
 function listed(items: string[]): string {
@@ -42,51 +26,20 @@ function groupByFor(result: UploadResponse, wanted: DimensionKey): DimensionKey 
   return keys.includes(wanted) ? wanted : keys[0]
 }
 
-function defaultUnitText(result: UploadResponse): string {
-  return result.file.typical_stake === null ? '1.00' : result.file.typical_stake.toFixed(2)
-}
-
 export function Upload({
   state,
   setState,
+  onCheck,
+  onRemove,
 }: {
   state: UploadState
   setState: (update: (s: UploadState) => UploadState) => void
+  /** Check a file, or the same file again with a new unit. */
+  onCheck: (file: File, unit?: number) => void
+  /** Forget the file, here and in this browser's storage. */
+  onRemove: () => void
 }) {
   const [unitDraft, setUnitDraft] = useState<string | null>(null)
-
-  function check(file: File, unit?: number) {
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setState((s) => ({
-        ...s,
-        file,
-        status: 'error',
-        result: undefined,
-        error: `${file.name} is ${(file.size / 1024 / 1024).toFixed(2)} MB; files above 4.5 MB cannot be checked.`,
-      }))
-      return
-    }
-    setState((s) => ({ ...s, file, status: 'checking', error: undefined }))
-    postUpload(file, unit)
-      .then((result) =>
-        setState((s) => ({
-          ...s,
-          status: 'done',
-          result,
-          // A fresh file resets the viewer's choices; a new unit keeps them.
-          chosenCurrency: unit === undefined ? currencyOptions(result)[0] : s.chosenCurrency,
-          unitText: unit === undefined ? defaultUnitText(result) : unit.toFixed(2),
-        })),
-      )
-      .catch((error: unknown) =>
-        setState((s) => ({
-          ...s,
-          status: 'error',
-          result: undefined,
-          error: error instanceof ApiError ? error.message : String(error),
-        })),
-      )
-  }
 
   function commitUnit() {
     if (unitDraft === null) return
@@ -94,7 +47,7 @@ export function Upload({
     setUnitDraft(null)
     if (!Number.isFinite(value) || value < 0.01) return
     if (value.toFixed(2) === state.unitText) return
-    if (state.file) check(state.file, value)
+    if (state.file) onCheck(state.file, value)
   }
 
   const result = state.status === 'done' || state.status === 'checking' ? state.result : undefined
@@ -121,13 +74,26 @@ export function Upload({
           accept=".csv,text/csv"
           onChange={(e) => {
             const file = e.target.files?.[0]
-            if (file) check(file)
+            if (file) onCheck(file)
+            // Let the same file be chosen again after it was removed.
+            e.target.value = ''
           }}
         />
         <span className="uploader-hint">
           {state.file ? state.file.name : 'Drag and drop or browse · CSV'}
         </span>
       </label>
+      {state.file && (
+        <div className="uploader-actions">
+          <span className="caption">
+            Kept in this browser for 24 hours, so a reload does not lose it. Explore
+            shows this file until you remove it.
+          </span>
+          <button type="button" className="button-secondary" onClick={onRemove}>
+            Remove file
+          </button>
+        </div>
+      )}
 
       {state.status === 'idle' && (
         <Alert kind="info" icon="📄">

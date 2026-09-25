@@ -534,6 +534,30 @@ input:disabled {
   margin-top: 0.35rem;
 }
 
+.uploader-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.5rem 0 1rem;
+}
+
+.button-secondary {
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--baseline);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---- expander ---------------------------------------------------------- */
 
 .expander {
