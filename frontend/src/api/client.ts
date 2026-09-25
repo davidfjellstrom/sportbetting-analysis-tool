@@ -56,23 +56,33 @@ export function getExplore(query: ExploreQuery): Promise<ExploreResponse> {
 
 /**
  * Explore an uploaded file. The server keeps nothing between requests, so the
- * file travels with every one. Without a unit the amounts are in the file's
- * own currency.
+ * file travels with every one. Without a unit the amounts are in the chosen
+ * currency, converted at today's rate.
  */
 export function postExploreUpload(
   file: File,
-  unit: number | undefined,
+  choice: UploadChoice,
   query: ExploreQuery,
 ): Promise<ExploreResponse> {
-  const body = new FormData()
-  body.append('file', file, file.name)
-  if (unit !== undefined) body.append('unit', String(unit))
+  const body = uploadBody(file, choice)
   return request(`/api/explore/upload?${queryString(query)}`, { method: 'POST', body })
 }
 
-export function postUpload(file: File, unit?: number): Promise<UploadResponse> {
+/** How an uploaded file is to be shown: a unit size, and a currency to convert
+ * to at today's rate. Either left out means the file's own. */
+export interface UploadChoice {
+  unit?: number
+  currency?: string
+}
+
+function uploadBody(file: File, { unit, currency }: UploadChoice): FormData {
   const body = new FormData()
   body.append('file', file, file.name)
   if (unit !== undefined) body.append('unit', String(unit))
-  return request('/api/upload', { method: 'POST', body })
+  if (currency !== undefined) body.append('currency', currency)
+  return body
+}
+
+export function postUpload(file: File, choice: UploadChoice = {}): Promise<UploadResponse> {
+  return request('/api/upload', { method: 'POST', body: uploadBody(file, choice) })
 }

@@ -163,3 +163,17 @@ def test_describe_without_n_bets_reports_bets_as_unknown(export_without):
 
 def test_fill_rate_without_stake_is_nan(export_without):
     assert pd.isna(loader.fill_rate(_upload(export_without("Stake"))))
+
+
+def test_in_currency_scales_money_only_and_relabels(df):
+    out = loader.in_currency(df, 11.0, "SEK")
+    for col in loader.MONEY_COLUMNS:
+        assert out[col].sum() == pytest.approx(11.0 * df[col].sum())
+    assert out["roi"].equals(df["roi"])
+    assert out["n_bets"].equals(df["n_bets"])
+    assert set(out["currency"]) == {"sek"}
+
+
+def test_in_currency_rejects_non_positive_rate(df):
+    with pytest.raises(ValueError):
+        loader.in_currency(df, 0, "SEK")

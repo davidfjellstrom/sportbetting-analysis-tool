@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 import aggregations as agg
 import loader
+from api import fx
 from api.history import History, get_history
 from api.index import app
 from conftest import RAW_HEADER, UPLOAD_REQUIRED_HEADERS
@@ -253,6 +254,7 @@ def test_upload_returns_both_views(client, modern_csv: Path):
         "currency_in_file": "EUR",
         "typical_stake": typical,
         "unit_used": typical,
+        "fx": None,
     }
     assert body["checks"]["ok"] is True
     assert body["report"]["n_rows"] == len(frame)
@@ -452,3 +454,71 @@ def test_upload_carries_explore_options_for_the_file(client, export_without):
 
 def test_explore_upload_rejects_a_broken_file(client, export_without):
     assert explore_csv(client, export_without("Event")).status_code == 400
+
+
+# --------------------------------------------------------------------------
+# Currency conversion. The rate service is stubbed: no test touches the network.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sek_rate(monkeypatch):
+    rate = fx.Rate("EUR", "SEK", 11.0, "2026-09-25")
+    calls: list[tuple[str, str]] = []
+
+    def fake(base, target):
+        calls.append((base, target))
+        return rate
+
+    monkeypatch.setattr(fx, "latest", fake)
+    return calls
+
+
+def test_upload_converts_the_currency_view(client, modern_csv: Path, sek_rate):
+    eur = strict_json(post_csv(client, modern_csv))
+    sek = strict_json(post_csv(client, modern_csv, currency="SEK"))
+    assert sek_rate == [("EUR", "SEK")]
+    assert sek["currency"]["currency"] == "SEK"
+    assert sek["currency"]["matched"]["pl"] == pytest.approx(
+        11.0 * eur["currency"]["matched"]["pl"]
+    )
+    assert sek["file"]["fx"] == {
+        "base": "EUR", "target": "SEK", "rate": 11.0, "date": "2026-09-25"
+    }
+    # Units are in the file's own currency; converting must not touch them.
+    assert sek["units"] == eur["units"]
+
+
+def test_upload_in_its_own_currency_fetches_no_rate(client, modern_csv, sek_rate):
+    body = strict_json(post_csv(client, modern_csv, currency="EUR"))
+    assert sek_rate == []
+    assert body["file"]["fx"] is None
+
+
+def test_upload_rejects_an_unsupported_currency(client, modern_csv: Path):
+    assert post_csv(client, modern_csv, currency="GBP").status_code == 422
+
+
+def test_rate_unavailable_is_a_clear_503(client, modern_csv: Path, monkeypatch):
+    def down(base, target):
+        raise fx.FxUnavailableError("Could not fetch today's EUR/SEK exchange rate.")
+
+    monkeypatch.setattr(fx, "latest", down)
+    response = post_csv(client, modern_csv, currency="SEK")
+    assert response.status_code == 503
+    assert "exchange rate" in response.json()["detail"]
+
+
+def test_explore_upload_converts_too(client, modern_csv: Path, sek_rate):
+    eur = strict_json(explore_csv(client, modern_csv))
+    with modern_csv.open("rb") as fh:
+        sek = strict_json(
+            client.post(
+                "/api/explore/upload",
+                files={"file": (modern_csv.name, fh, "text/csv")},
+                data={"currency": "SEK"},
+            )
+        )
+    assert sek["currency"] == "SEK"
+    assert sek["view"]["turnover"] == pytest.approx(11.0 * eur["view"]["turnover"])
+    assert sek["view"]["roi_pct"] == pytest.approx(eur["view"]["roi_pct"])

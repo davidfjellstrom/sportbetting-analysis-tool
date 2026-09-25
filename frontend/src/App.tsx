@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ApiError,
   getExplore,
   getExploreOptions,
   getOverview,
   postExploreUpload,
+  type UploadChoice,
 } from './api/client'
 import type { ExploreOptions, ExploreQuery, OverviewResponse } from './api/types'
 import { Alert } from './components/Alert'
@@ -47,9 +48,9 @@ export default function App() {
   // history. The file is kept in this browser (uploadStore) so a reload
   // restores it; the server never keeps it.
 
-  const onCheck = useCallback((file: File, unit?: number) => {
-    void checkUpload(file, unit, setUpload).then((accepted) => {
-      if (accepted) void saveUpload({ file, savedAt: Date.now(), unit })
+  const onCheck = useCallback((file: File, choice: UploadChoice = {}) => {
+    void checkUpload(file, choice, setUpload).then((accepted) => {
+      if (accepted) void saveUpload({ file, savedAt: Date.now(), ...choice })
     })
   }, [])
 
@@ -60,7 +61,7 @@ export default function App() {
 
   useEffect(() => {
     void loadUpload().then((stored) => {
-      if (stored) onCheck(stored.file, stored.unit)
+      if (stored) onCheck(stored.file, { unit: stored.unit, currency: stored.currency })
     })
   }, [onCheck])
 
@@ -68,24 +69,23 @@ export default function App() {
   const uploadView =
     uploaded && (upload.display === 'Units' ? uploaded.units : uploaded.currency)
   const uploadUnit = upload.display === 'Units' ? uploaded?.file.unit_used : undefined
-  const uploadOptions = useMemo(() => {
-    const options = uploadView?.explore_options ?? null
-    // In the currency view the amounts carry the label the viewer chose.
-    return options && upload.display === 'Currency'
-      ? { ...options, currency: upload.chosenCurrency }
-      : options
-  }, [uploadView, upload.display, upload.chosenCurrency])
+  // The currency view is converted on the server, so its options already
+  // carry the right label; the explorer converts the same way.
+  const uploadCurrency =
+    upload.display === 'Currency' ? uploaded?.currency.currency : undefined
+  const uploadOptions = uploadView?.explore_options ?? null
   const uploadFile = upload.file
   const fetchUpload = useCallback(
-    (query: ExploreQuery) => postExploreUpload(uploadFile!, uploadUnit, query),
-    [uploadFile, uploadUnit],
+    (query: ExploreQuery) =>
+      postExploreUpload(uploadFile!, { unit: uploadUnit, currency: uploadCurrency }, query),
+    [uploadFile, uploadUnit, uploadCurrency],
   )
 
   // The explorer's filters start over for each file, unit and view, because
   // their ranges (dates, stakes, groupings) come from the data being explored.
   const uploadKey =
     uploadFile && uploadOptions
-      ? `${uploadFile.name}:${uploadFile.size}:${uploadFile.lastModified}:${upload.display}:${uploadUnit}`
+      ? `${uploadFile.name}:${uploadFile.size}:${uploadFile.lastModified}:${upload.display}:${uploadUnit}:${uploadCurrency}`
       : null
   const [uploadExplore, setUploadExplore] = useState<{
     key: string
