@@ -115,8 +115,11 @@ class LabelledKey(BaseModel):
 
 
 class CompareRules(BaseModel):
+    """What a group needs for its own curve. ``None``: that bar does not apply."""
+
     min_turnover: float
-    min_bets: int
+    min_bets: int | None
+    min_fixtures: int | None
     max_series: int
 
 
@@ -124,7 +127,9 @@ class ExploreOptions(BaseModel):
     currency: str
     date_min: str
     date_max: str
-    stake_ceiling: float
+    #: ``None`` when the data has no stake column; the stake filter is hidden.
+    stake_ceiling: float | None
+    #: Empty when the data has no such column; the filter is hidden.
     market_types: list[str]
     bookies: list[str]
     dimensions: list[LabelledKey]
@@ -139,7 +144,7 @@ class ViewTotals(BaseModel):
     turnover: float
     pl: float
     roi_pct: float
-    bets: int
+    bets: int | None
 
 
 class CurvePoint(BaseModel):
@@ -159,6 +164,8 @@ class ExploreOk(BaseModel):
     bars_order: list[str]
     eligible: list[str]
     curves: dict[str, list[CurvePoint]]
+    #: What one point of a curve covers. ``CurvePoint.month`` holds its start.
+    curve_bucket: Literal["day", "month"]
 
 
 class ExploreStopped(BaseModel):
@@ -187,6 +194,9 @@ class UploadView(BaseModel):
     cumulative: PeriodSeries
     #: Keyed by the dimensions in ``UploadResponse.dimensions`` only.
     breakdown: dict[DimensionKey, list[SliceRow]]
+    #: The explorer's options for this file, in this view's amounts. ``None``
+    #: when no row matched: there is nothing to explore.
+    explore_options: ExploreOptions | None
 
 
 class UploadResponse(BaseModel):

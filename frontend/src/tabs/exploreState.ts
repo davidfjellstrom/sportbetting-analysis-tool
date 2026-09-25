@@ -5,7 +5,8 @@ export interface ExploreState {
   dateFrom: string
   dateTo: string
   minStake: number
-  maxStake: number
+  /** null when the data has no stake column to filter on. */
+  maxStake: number | null
   marketTypes: string[]
   bookies: string[]
   groupBy: DimensionKey
@@ -28,7 +29,10 @@ export function initialExploreState(options: ExploreOptions): ExploreState {
     maxStake: options.stake_ceiling,
     marketTypes: [],
     bookies: [],
-    groupBy: 'market_type',
+    // An upload may have no market type; start on something it does have.
+    groupBy: options.dimensions.some((d) => d.key === 'market_type')
+      ? 'market_type'
+      : (options.dimensions[0].key as DimensionKey),
     sort: 'turnover_desc',
     minFixtures: 0,
     topN: 12,
@@ -44,7 +48,7 @@ export function exploreQuery(state: ExploreState): ExploreQuery {
     date_from: state.dateFrom,
     date_to: state.dateTo,
     min_stake: state.minStake,
-    max_stake: state.maxStake,
+    max_stake: state.maxStake ?? undefined,
     market_type: state.marketTypes.length ? state.marketTypes : undefined,
     bookie: state.bookies.length ? state.bookies : undefined,
     group_by: state.groupBy,

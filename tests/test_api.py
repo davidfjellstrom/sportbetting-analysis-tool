@@ -107,7 +107,9 @@ def test_explore_options(client, df):
     assert body["bookies"] == ["betfair", "cashout", "pinnacle"]
     assert [d["key"] for d in body["dimensions"]] == [d.key for d in agg.DIMENSIONS]
     assert [s["key"] for s in body["sorts"]] == [s.key for s in agg.SORTS]
-    assert body["compare"] == {"min_turnover": 350.0, "min_bets": 2000, "max_series": 8}
+    assert body["compare"] == {
+        "min_turnover": 350.0, "min_bets": 2000, "min_fixtures": None, "max_series": 8
+    }
 
 
 def test_no_processed_data_is_a_clear_503(bare_client, tmp_path: Path, monkeypatch):
@@ -374,3 +376,79 @@ def test_upload_with_no_matched_rows(client, tmp_path: Path):
     assert body["units"]["matched"]["turnover"] == 0
     assert body["units"]["cumulative"]["points"] == []
     assert body["report"]["n_unmatched_rows"] == len(rows)
+
+
+# --------------------------------------------------------------------------
+# Explore an uploaded file
+# --------------------------------------------------------------------------
+
+
+def explore_csv(client, path: Path, unit: float | None = None, **params):
+    form = {} if unit is None else {"unit": str(unit)}
+    with path.open("rb") as fh:
+        return client.post(
+            "/api/explore/upload",
+            files={"file": (path.name, fh, "text/csv")},
+            data=form,
+            params=params,
+        )
+
+
+def test_explore_upload_covers_only_the_file(client, modern_csv: Path):
+    body = strict_json(explore_csv(client, modern_csv, group_by="bookie"))
+    matched = loader.matched(loader.load_file(modern_csv))
+    assert body["status"] == "ok"
+    assert body["view"]["turnover"] == pytest.approx(matched["turnover"].sum())
+    assert {r["slice"] for r in body["table"]} == set(
+        matched["bookie"].astype(str)
+    )
+    assert body["curve_bucket"] == "day"
+
+
+def test_explore_history_curves_stay_monthly(client):
+    assert strict_json(client.get("/api/explore"))["curve_bucket"] == "month"
+
+
+def test_explore_upload_in_units(client, modern_csv: Path):
+    raw = strict_json(explore_csv(client, modern_csv))
+    units = strict_json(explore_csv(client, modern_csv, unit=2.0))
+    assert units["currency"] == "units"
+    assert units["view"]["turnover"] == pytest.approx(raw["view"]["turnover"] / 2)
+    assert units["view"]["roi_pct"] == pytest.approx(raw["view"]["roi_pct"])
+
+
+def test_explore_upload_filters_like_the_history(client, modern_csv: Path):
+    body = strict_json(
+        explore_csv(client, modern_csv, market_type=["ou"], group_by="bookie")
+    )
+    matched = loader.matched(loader.load_file(modern_csv))
+    ou = matched[matched["market_type"] == "ou"]
+    assert body["view"]["turnover"] == pytest.approx(ou["turnover"].sum())
+
+
+def test_explore_upload_without_a_column(client, export_without):
+    path = export_without("Bookie", "Stake", "Nr of Bets")
+    by_bookie = strict_json(explore_csv(client, path, group_by="bookie"))
+    assert by_bookie["status"] == "empty"
+    # Filters on absent columns are ignored rather than emptying the view.
+    body = strict_json(
+        explore_csv(client, path, bookie=["pinnacle"], min_stake=10, max_stake=20)
+    )
+    assert body["status"] == "ok"
+    assert body["view"]["bets"] is None
+
+
+def test_upload_carries_explore_options_for_the_file(client, export_without):
+    body = strict_json(post_csv(client, export_without("Bookie", "Stake")))
+    options = body["units"]["explore_options"]
+    assert options["currency"] == "units"
+    assert options["stake_ceiling"] is None
+    assert options["bookies"] == []
+    assert "bookie" not in [d["key"] for d in options["dimensions"]]
+    assert options["compare"]["min_bets"] is None
+    assert options["compare"]["min_fixtures"] == agg.UPLOAD_CURVE_MIN_FIXTURES
+    assert body["currency"]["explore_options"]["currency"] == "EUR"
+
+
+def test_explore_upload_rejects_a_broken_file(client, export_without):
+    assert explore_csv(client, export_without("Event")).status_code == 400

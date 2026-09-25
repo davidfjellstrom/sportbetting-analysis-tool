@@ -40,14 +40,34 @@ export function getExploreOptions(): Promise<ExploreOptions> {
   return request('/api/explore/options')
 }
 
-export function getExplore(query: ExploreQuery): Promise<ExploreResponse> {
+function queryString(query: ExploreQuery): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue
     if (Array.isArray(value)) value.forEach((v) => params.append(key, v))
     else params.set(key, String(value))
   }
-  return request(`/api/explore?${params}`)
+  return params.toString()
+}
+
+export function getExplore(query: ExploreQuery): Promise<ExploreResponse> {
+  return request(`/api/explore?${queryString(query)}`)
+}
+
+/**
+ * Explore an uploaded file. The server keeps nothing between requests, so the
+ * file travels with every one. Without a unit the amounts are in the file's
+ * own currency.
+ */
+export function postExploreUpload(
+  file: File,
+  unit: number | undefined,
+  query: ExploreQuery,
+): Promise<ExploreResponse> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  if (unit !== undefined) body.append('unit', String(unit))
+  return request(`/api/explore/upload?${queryString(query)}`, { method: 'POST', body })
 }
 
 export function postUpload(file: File, unit?: number): Promise<UploadResponse> {

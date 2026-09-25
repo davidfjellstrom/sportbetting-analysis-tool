@@ -10,7 +10,8 @@ export function measureLabel(measure: Measure, code: string): string {
 }
 
 /**
- * The picked segments' monthly curves on one set of axes.
+ * The picked segments' curves on one set of axes — monthly for the history,
+ * daily for a short uploaded file (``bucket``).
  *
  * One segment: the filled area reads best, and with a single series the
  * title names it — no legend needed. Several: lines, because stacked or
@@ -24,6 +25,7 @@ export function compareSpec(
   measure: Measure,
   dimensionLabel: string,
   code: string,
+  bucket: 'day' | 'month' = 'month',
 ): TopLevelSpec {
   if (picked.length > MAX_SERIES) {
     throw new Error(`at most ${MAX_SERIES} series on one chart, got ${picked.length}`)
@@ -38,7 +40,9 @@ export function compareSpec(
     y: { field: measure, type: 'quantitative' as const, title },
     tooltip: [
       { field: 'slice', type: 'nominal' as const, title: dimensionLabel },
-      { field: 'month', type: 'temporal' as const, title: 'Month', format: '%b %Y' },
+      bucket === 'day'
+        ? { field: 'month', type: 'temporal' as const, title: 'Day', format: '%d %b %Y' }
+        : { field: 'month', type: 'temporal' as const, title: 'Month', format: '%b %Y' },
       { field: measure, type: 'quantitative' as const, title, format },
       {
         field: 'cum_turnover',

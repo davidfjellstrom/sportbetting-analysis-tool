@@ -23,6 +23,7 @@ import aggregations as agg
 import checks
 import loader
 from api import schemas, serialise
+from api.explorer import ExploreSource
 
 NO_DATA_MESSAGE = (
     "No processed data. On the machine that holds the raw exports, run "
@@ -36,6 +37,7 @@ class History:
     frame: pd.DataFrame
     matched: pd.DataFrame
     explore_frame: pd.DataFrame
+    explorer: ExploreSource
     currency: str
     report: loader.LoadReport
     checks: checks.CheckReport
@@ -45,8 +47,8 @@ class History:
     @classmethod
     def from_frame(cls, frame: pd.DataFrame) -> History:
         matched = loader.matched(frame)
-        explore_frame = agg.with_dimensions(matched)
         currency = agg.currency_code(frame)
+        explorer = ExploreSource.build(matched, currency, agg.history_curve_rule())
         report = loader.describe(frame)
         integrity = checks.run_checks(frame)
         overview = schemas.OverviewResponse(
@@ -57,32 +59,16 @@ class History:
             checks=serialise.check_report(integrity),
             cumulative=serialise.period_series(matched),
         )
-        options = schemas.ExploreOptions(
-            currency=currency,
-            date_min=explore_frame["event_day"].min().strftime("%Y-%m-%d"),
-            date_max=explore_frame["event_day"].max().strftime("%Y-%m-%d"),
-            stake_ceiling=agg.stake_ceiling(explore_frame),
-            market_types=agg.option_values(explore_frame, "market_type"),
-            bookies=agg.option_values(explore_frame, "bookie"),
-            dimensions=[
-                schemas.LabelledKey(key=d.key, label=d.label) for d in agg.DIMENSIONS
-            ],
-            sorts=[schemas.LabelledKey(key=s.key, label=s.label) for s in agg.SORTS],
-            compare=schemas.CompareRules(
-                min_turnover=agg.SMALL_MULTIPLE_MIN_TURNOVER,
-                min_bets=agg.SMALL_MULTIPLE_MIN_BETS,
-                max_series=agg.MAX_SERIES,
-            ),
-        )
         return cls(
             frame=frame,
             matched=matched,
-            explore_frame=explore_frame,
+            explore_frame=explorer.frame,
+            explorer=explorer,
             currency=currency,
             report=report,
             checks=integrity,
             overview=overview,
-            options=options,
+            options=explorer.options,
         )
 
 

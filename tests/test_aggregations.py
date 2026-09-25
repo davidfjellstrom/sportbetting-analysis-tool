@@ -287,3 +287,26 @@ def test_aggregate_without_n_bets_leaves_bets_unknown(export_without):
     assert table["bets_per_fixture"].isna().all()
     assert (table["fixtures"] >= 1).all()
     assert table["turnover"].sum() == pytest.approx(frame["turnover"].sum())
+
+
+def test_upload_curve_rule_scales_with_the_file(matched):
+    rule = agg.upload_curve_rule(matched)
+    share = agg.UPLOAD_CURVE_MIN_TURNOVER_SHARE
+    assert rule.min_turnover == pytest.approx(share * matched["turnover"].sum(), abs=0.01)
+    assert rule.min_bets is None
+    assert rule.min_fixtures == agg.UPLOAD_CURVE_MIN_FIXTURES
+
+
+def test_eligible_for_curves_can_bar_on_matches():
+    table = pd.DataFrame(
+        {"slice": ["wide", "narrow"], "bets": [float("nan")] * 2,
+         "fixtures": [30, 5], "turnover": [100.0, 100.0]}
+    )
+    rule = agg.CurveRule(min_turnover=50.0, min_fixtures=20)
+    assert list(agg.eligible_for_curves(table, rule)["slice"]) == ["wide"]
+
+
+def test_curve_freq_is_daily_for_a_short_span(matched):
+    short = matched[matched["event_day"] >= "2025-01-01"]
+    assert agg.curve_freq(short) == "D"
+    assert agg.curve_freq(matched) == "M"

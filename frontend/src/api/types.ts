@@ -100,9 +100,11 @@ export interface LabelledKey {
   label: string
 }
 
+// What a group needs for its own curve. null: that bar does not apply.
 export interface CompareRules {
   min_turnover: number
-  min_bets: number
+  min_bets: number | null
+  min_fixtures: number | null
   max_series: number
 }
 
@@ -110,7 +112,9 @@ export interface ExploreOptions {
   currency: string
   date_min: string
   date_max: string
-  stake_ceiling: number
+  // null when the data has no stake column; the stake filter is hidden.
+  stake_ceiling: number | null
+  // Empty when the data has no such column; the filter is hidden.
   market_types: string[]
   bookies: string[]
   dimensions: LabelledKey[]
@@ -124,7 +128,8 @@ export interface ExploreQuery {
   date_from: string
   date_to: string
   min_stake: number
-  max_stake: number
+  // Absent when the data has no stake column.
+  max_stake?: number
   market_type?: string[]
   bookie?: string[]
   group_by: DimensionKey
@@ -136,7 +141,7 @@ export interface ViewTotals {
   turnover: number
   pl: number
   roi_pct: number
-  bets: number
+  bets: number | null
 }
 
 export interface CurvePoint {
@@ -156,6 +161,8 @@ export interface ExploreOk {
   bars_order: string[]
   eligible: string[]
   curves: Record<string, CurvePoint[]>
+  // What one curve point covers; CurvePoint.month holds its start.
+  curve_bucket: 'day' | 'month'
 }
 
 export interface ExploreStopped {
@@ -180,6 +187,9 @@ export interface UploadView {
   cumulative: PeriodSeries
   // Keyed by the dimensions in UploadResponse.dimensions only.
   breakdown: Partial<Record<DimensionKey, SliceRow[]>>
+  // The explorer's options for this file in this view's amounts; null when
+  // no row matched and there is nothing to explore.
+  explore_options: ExploreOptions | null
 }
 
 export interface UploadResponse {
