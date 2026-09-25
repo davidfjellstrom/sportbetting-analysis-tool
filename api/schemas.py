@@ -52,7 +52,8 @@ class CheckReport(BaseModel):
 
 class LoadReport(BaseModel):
     n_rows: int
-    n_bets: int
+    #: ``None`` when an upload has no ``Nr of Bets``; a row is not a bet.
+    n_bets: int | None
     n_fixtures: int
     n_unmatched_rows: int
     unmatched_row_share: float
@@ -65,7 +66,7 @@ class LoadReport(BaseModel):
 class Totals(BaseModel):
     turnover: float
     pl: float
-    bets: int
+    bets: int | None
     fixtures: int
 
 
@@ -85,9 +86,9 @@ class PeriodSeries(BaseModel):
 
 class SliceRow(BaseModel):
     slice: str
-    bets: int
+    bets: int | None
     fixtures: int
-    bets_per_fixture: float
+    bets_per_fixture: float | None
     turnover: float
     pl: float
     roi_pct: float
@@ -184,6 +185,7 @@ class UploadView(BaseModel):
     currency: str
     matched: Totals
     cumulative: PeriodSeries
+    #: Keyed by the dimensions in ``UploadResponse.dimensions`` only.
     breakdown: dict[DimensionKey, list[SliceRow]]
 
 
@@ -191,5 +193,9 @@ class UploadResponse(BaseModel):
     file: UploadFile
     checks: CheckReport
     report: LoadReport
+    #: What this file can be grouped by; a subset when it left columns out.
+    dimensions: list[LabelledKey]
+    #: Export headers the file did not carry, e.g. ``["Bookie"]``.
+    missing_columns: list[str]
     units: UploadView
     currency: UploadView

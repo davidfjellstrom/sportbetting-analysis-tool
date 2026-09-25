@@ -205,3 +205,39 @@ def test_battery_runs_on_a_freshly_loaded_frame(raw_dir):
     """End to end: load the synthetic exports, then check them."""
     report = checks.run_checks(loader.load_raw(raw_dir))
     assert report.ok
+
+
+# --------------------------------------------------------------------------
+# Uploads with columns left out: skipped out loud, never dropped silently
+# --------------------------------------------------------------------------
+
+
+def _upload(path):
+    with path.open("rb") as fh:
+        return loader.load_upload(fh, path.name)
+
+
+@pytest.mark.parametrize(
+    ("header", "check"),
+    [
+        ("ROI", "roi_consistent"),
+        ("Stake", "turnover_within_stake"),
+        ("Market Type", "market_types_known"),
+    ],
+)
+def test_check_without_its_column_is_reported_as_skipped(export_without, header, check):
+    report = checks.run_checks(_upload(export_without(header)))
+    found = {c.name: c for c in report.checks}[check]
+    assert found.severity is checks.Severity.INFO
+    assert found.detail == f"skipped: no {header} column in export"
+    assert report.ok
+
+
+def test_missing_columns_are_listed_in_the_report(export_without):
+    report = checks.run_checks(_upload(export_without("Bookie", "Country")))
+    found = {c.name: c for c in report.checks}["columns_missing"]
+    assert "Country, Bookie" in found.detail
+
+
+def test_full_export_has_no_columns_missing_row(df):
+    assert "columns_missing" not in {c.name for c in checks.run_checks(df).checks}

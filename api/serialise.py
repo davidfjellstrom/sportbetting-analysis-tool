@@ -56,7 +56,9 @@ def totals(matched: pd.DataFrame) -> schemas.Totals:
     return schemas.Totals(
         turnover=float(matched["turnover"].sum()),
         pl=float(matched["pl"].sum()),
-        bets=int(matched["n_bets"].fillna(0).sum()),
+        bets=int(matched["n_bets"].fillna(0).sum())
+        if "n_bets" in matched.columns
+        else None,
         fixtures=int(matched["fixture_id"].nunique()),
     )
 
@@ -83,9 +85,9 @@ def slice_rows(table: pd.DataFrame) -> list[schemas.SliceRow]:
     return [
         schemas.SliceRow(
             slice=row.slice,
-            bets=int(row.bets),
+            bets=None if pd.isna(row.bets) else int(row.bets),
             fixtures=int(row.fixtures),
-            bets_per_fixture=row.bets_per_fixture,
+            bets_per_fixture=_finite(row.bets_per_fixture),
             turnover=row.turnover,
             pl=row.pl,
             roi_pct=row.roi_pct,
@@ -112,14 +114,15 @@ def curves(monthly: pd.DataFrame) -> dict[str, list[schemas.CurvePoint]]:
 def breakdown(
     matched_with_dims: pd.DataFrame,
 ) -> dict[str, list[schemas.SliceRow]]:
-    """Every dimension at once, largest turnover first, as the Upload tab shows."""
+    """Every available dimension at once, largest turnover first, as the
+    Upload tab shows. Dimensions whose column the file left out are absent."""
     return {
         d.key: slice_rows(
             agg.aggregate(matched_with_dims, d.column).sort_values(
                 "turnover", ascending=False
             )
         )
-        for d in agg.DIMENSIONS
+        for d in agg.available_dimensions(matched_with_dims)
     }
 
 

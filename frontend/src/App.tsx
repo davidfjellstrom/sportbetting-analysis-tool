@@ -77,11 +77,7 @@ export default function App() {
           <section className="tab-panel" role="tabpanel">
             {tab === 'overview' && <Overview data={loaded.overview} />}
             {tab === 'upload' && (
-              <Upload
-                state={upload}
-                setState={setUpload}
-                dimensions={loaded.options.dimensions}
-              />
+              <Upload state={upload} setState={setUpload} />
             )}
             {tab === 'explore' && explore && (
               <Explore state={explore} setState={updateExplore} options={loaded.options} />

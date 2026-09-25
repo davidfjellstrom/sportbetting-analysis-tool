@@ -256,3 +256,34 @@ def test_cumulative_by_slice(with_missing_side):
         assert list(part["cum_roi_pct"]) == pytest.approx(
             list(100 * part["pl"].cumsum() / part["turnover"].cumsum())
         )
+
+
+# --------------------------------------------------------------------------
+# Uploads with columns left out
+# --------------------------------------------------------------------------
+
+
+def _upload(path):
+    with path.open("rb") as fh:
+        return loader.load_upload(fh, path.name)
+
+
+def test_every_dimension_available_on_a_full_export(matched):
+    assert agg.available_dimensions(agg.with_dimensions(matched)) == agg.DIMENSIONS
+
+
+def test_dimension_without_its_column_is_not_available(export_without):
+    frame = agg.with_dimensions(_upload(export_without("Bookie", "Stake")))
+    keys = {d.key for d in agg.available_dimensions(frame)}
+    assert "bookie" not in keys
+    assert "stake_bucket" not in keys
+    assert {"country", "n_bets_bucket", "year"} <= keys
+
+
+def test_aggregate_without_n_bets_leaves_bets_unknown(export_without):
+    frame = loader.matched(_upload(export_without("Nr of Bets")))
+    table = agg.aggregate(frame, "market_type")
+    assert table["bets"].isna().all()
+    assert table["bets_per_fixture"].isna().all()
+    assert (table["fixtures"] >= 1).all()
+    assert table["turnover"].sum() == pytest.approx(frame["turnover"].sum())

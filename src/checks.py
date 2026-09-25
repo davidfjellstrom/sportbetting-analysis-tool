@@ -43,6 +43,8 @@ from enum import StrEnum
 
 import pandas as pd
 
+import loader
+
 #: Every market type observed in the exports so far. Core and novelty types
 #: are named in CLAUDE.md; the rest are a rare long tail. An unseen type is a
 #: WARN, not an ERROR — new bet types appear over time and that is normal. It
@@ -141,6 +143,20 @@ class CheckReport:
         return "\n".join([head, *(str(c) for c in self.checks)])
 
 
+def _skipped(name: str, *columns: str) -> Check:
+    """A check that could not run because the export left its column(s) out.
+
+    Only an upload can get here. Reported, never silently dropped: a check that
+    vanishes from the table reads as a check that passed.
+    """
+    headers = ", ".join(loader.SOURCE_HEADER.get(c, c) for c in columns)
+    return Check(name, True, Severity.INFO, f"skipped: no {headers} column in export")
+
+
+def _absent(df: pd.DataFrame, *columns: str) -> tuple[str, ...]:
+    return tuple(c for c in columns if c not in df.columns)
+
+
 # --------------------------------------------------------------------------
 # Individual checks. Each takes the loaded frame and returns one Check, so a
 # caller can run just the one they care about and tests can target them.
@@ -173,6 +189,8 @@ def check_roi_consistent(df: pd.DataFrame) -> Check:
     If it does not, one of the two is measuring something else and every yield
     in the repo is built on the wrong one.
     """
+    if absent := _absent(df, "roi"):
+        return _skipped("roi_consistent", *absent)
     m = df.loc[df["turnover"] > 0]
     if m.empty:
         return Check("roi_consistent", True, Severity.ERROR, "no matched rows")
@@ -189,6 +207,8 @@ def check_roi_consistent(df: pd.DataFrame) -> Check:
 
 def check_turnover_within_stake(df: pd.DataFrame) -> Check:
     """Matched turnover can never exceed the stake that was offered."""
+    if absent := _absent(df, "stake"):
+        return _skipped("turnover_within_stake", *absent)
     bad = int((df["turnover"] > df["stake"] + 1e-9).sum())
     return Check(
         "turnover_within_stake",
@@ -293,6 +313,8 @@ def check_market_types_known(df: pd.DataFrame) -> Check:
     nobody has decided whether it is a core market or a novelty one — and
     ``NOVELTY_MARKET_TYPES`` will silently treat it as core.
     """
+    if absent := _absent(df, "market_type"):
+        return _skipped("market_types_known", *absent)
     seen = {str(v) for v in df["market_type"].dropna().unique()}
     unknown = sorted(seen - KNOWN_MARKET_TYPES)
     return Check(
@@ -326,7 +348,18 @@ def check_unmatched_rows_carry_no_result(df: pd.DataFrame) -> Check:
 def _info(df: pd.DataFrame) -> list[Check]:
     """Coverage figures. These never fail; they make drift visible."""
     out: list[Check] = []
-    stake = float(df["stake"].sum())
+    missing = loader.missing_columns(df)
+    if missing:
+        out.append(
+            Check(
+                "columns_missing",
+                True,
+                Severity.INFO,
+                f"not in export: {', '.join(missing)}. "
+                "Analysis needing them is skipped, not guessed",
+            )
+        )
+    stake = float(df["stake"].sum()) if "stake" in df.columns else 0.0
     if stake:
         out.append(
             Check(
