@@ -3,20 +3,20 @@ import { fixed, formatMonth, integer, money, percent, signed, tableMoney } from 
 
 describe('money', () => {
   it('formats every currency form', () => {
-    expect(money(1234.4, 'EUR')).toBe('€1,234')
-    expect(money(1234.4, 'GBP')).toBe('£1,234')
-    expect(money(1234.4, 'USD')).toBe('$1,234')
-    expect(money(218, 'SEK')).toBe('218 kr')
+    expect(money(1234.4, 'EUR')).toBe('€1,234.40')
+    expect(money(1234.4, 'GBP')).toBe('£1,234.40')
+    expect(money(1234.4, 'USD')).toBe('$1,234.40')
+    expect(money(218, 'SEK')).toBe('218.00 kr')
     expect(money(102480.2, 'units')).toBe('102,480.20 u')
-    expect(money(5, 'CHF')).toBe('5 CHF')
+    expect(money(5, 'CHF')).toBe('5.00 CHF')
   })
   it('carries an explicit sign on P/L', () => {
-    expect(money(1204, 'EUR', true)).toBe('+€1,204')
-    expect(money(-1204, 'EUR', true)).toBe('-€1,204')
+    expect(money(1204, 'EUR', true)).toBe('+€1,204.00')
+    expect(money(-1204, 'EUR', true)).toBe('-€1,204.00')
     expect(money(0, 'units', true)).toBe('+0.00 u')
-    expect(money(-3.5, 'SEK', true)).toBe('-4 kr')
+    expect(money(-3.5, 'SEK', true)).toBe('-3.50 kr')
   })
-  it('keeps two decimals on units, so a large unit is not rounded away', () => {
+  it('keeps two decimals, so a large unit is not rounded away', () => {
     expect(money(-98 / 10, 'units', true)).toBe('-9.80 u')
   })
   it('does not sign a plain amount', () => {
