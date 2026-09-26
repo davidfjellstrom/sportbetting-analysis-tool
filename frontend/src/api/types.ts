@@ -139,11 +139,8 @@ export interface ExploreQuery {
   min_fixtures: number
 }
 
-export interface ViewTotals {
-  turnover: number
-  pl: number
+export interface ViewTotals extends Totals {
   roi_pct: number
-  bets: number | null
 }
 
 export interface CurvePoint {
@@ -165,6 +162,9 @@ export interface ExploreOk {
   curves: Record<string, CurvePoint[]>
   // What one curve point covers; CurvePoint.month holds its start.
   curve_bucket: 'day' | 'month'
+  // Running P/L of the rows in view, for an uploaded file only; the
+  // history's own curve is on the Overview tab.
+  cumulative: PeriodSeries | null
 }
 
 export interface ExploreStopped {
@@ -195,10 +195,6 @@ export interface UploadFileInfo {
 
 export interface UploadView {
   currency: string
-  matched: Totals
-  cumulative: PeriodSeries
-  // Keyed by the dimensions in UploadResponse.dimensions only.
-  breakdown: Partial<Record<DimensionKey, SliceRow[]>>
   // The explorer's options for this file in this view's amounts; null when
   // no row matched and there is nothing to explore.
   explore_options: ExploreOptions | null
@@ -207,9 +203,6 @@ export interface UploadView {
 export interface UploadResponse {
   file: UploadFileInfo
   checks: CheckReport
-  report: LoadReport
-  // What this file can be grouped by; a subset when it left columns out.
-  dimensions: LabelledKey[]
   // Export headers the file did not carry, e.g. ["Bookie"].
   missing_columns: string[]
   units: UploadView

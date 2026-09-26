@@ -14,7 +14,7 @@ import { Tabs } from './components/Tabs'
 import { Overview } from './tabs/Overview'
 import { Explore } from './tabs/Explore'
 import { initialExploreState, type ExploreState } from './tabs/exploreState'
-import { Upload } from './tabs/Upload'
+import { UploadPanel } from './tabs/UploadPanel'
 import {
   INITIAL_UPLOAD_STATE,
   checkUpload,
@@ -31,7 +31,6 @@ import {
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
-  { key: 'upload', label: 'Upload' },
   { key: 'explore', label: 'Explore' },
 ]
 
@@ -89,9 +88,9 @@ export default function App() {
   const uploaded = upload.status === 'done' ? upload.result : undefined
   const uploadView =
     uploaded && (upload.display === 'Units' ? uploaded.units : uploaded.currency)
-  // The explorer converts the file the same way the Upload tab shows it: into
-  // the chosen currency, and then into units of that currency. The unit goes
-  // along in either view, because position sizes are always in units.
+  // The explorer converts the file as the upload panel chose: into the chosen
+  // currency, and then into units of that currency. The unit goes along in
+  // either view, because position sizes are always in units.
   const uploadUnit = uploaded?.file.unit_used
   const uploadInUnits = upload.display === 'Units'
   const uploadCurrency = displayCurrency(uploaded?.currency.currency)
@@ -168,42 +167,43 @@ export default function App() {
           <Tabs tabs={TABS} active={tab} onChange={setTab} />
           <section className="tab-panel" role="tabpanel">
             {tab === 'overview' && <Overview data={loaded.overview} />}
-            {tab === 'upload' && (
-              <Upload
-                state={upload}
-                setState={setUpload}
-                onCheck={onCheck}
-                onRemove={onRemove}
-              />
-            )}
-            {tab === 'explore' &&
-              (upload.status === 'checking' ? (
-                <div className="loading">Checking {upload.file?.name}…</div>
-              ) : uploaded && !uploadOptions ? (
-                <Alert kind="info" icon="📄">
-                  No bet in {uploadFile?.name} was matched, so there is nothing to explore.
-                  Remove it on the Upload tab to explore the full history again.
-                </Alert>
-              ) : uploaded && uploadOptions && uploadExplore?.key === uploadKey ? (
-                <Explore
-                  key={uploadKey}
-                  state={uploadExplore.state}
-                  setState={updateUploadExplore}
-                  options={uploadOptions}
-                  fetchExplore={fetchUpload}
-                  fileName={uploadFile?.name}
+            {tab === 'explore' && (
+              <>
+                <h3 className="accent">Segment explorer</h3>
+                <UploadPanel
+                  state={upload}
+                  setState={setUpload}
+                  onCheck={onCheck}
+                  onRemove={onRemove}
                 />
-              ) : (
-                explore && (
+                {upload.status === 'checking' ? (
+                  <div className="loading">Checking {upload.file?.name}…</div>
+                ) : uploaded && !uploadOptions ? (
+                  <Alert kind="info" icon="📄">
+                    No bet in {uploadFile?.name} was matched, so there is nothing to
+                    explore. Remove it to explore the full history again.
+                  </Alert>
+                ) : uploaded && uploadOptions && uploadExplore?.key === uploadKey ? (
                   <Explore
-                    key="history"
-                    state={explore}
-                    setState={updateExplore}
-                    options={loaded.options}
-                    fetchExplore={getExplore}
+                    key={uploadKey}
+                    state={uploadExplore.state}
+                    setState={updateUploadExplore}
+                    options={uploadOptions}
+                    fetchExplore={fetchUpload}
                   />
-                )
-              ))}
+                ) : (
+                  explore && (
+                    <Explore
+                      key="history"
+                      state={explore}
+                      setState={updateExplore}
+                      options={loaded.options}
+                      fetchExplore={getExplore}
+                    />
+                  )
+                )}
+              </>
+            )}
           </section>
         </>
       )}

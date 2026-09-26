@@ -1,5 +1,5 @@
 import { ApiError, postUpload, type UploadChoice } from '../api/client'
-import type { DimensionKey, UploadResponse } from '../api/types'
+import type { UploadResponse } from '../api/types'
 
 export interface UploadState {
   file: File | null
@@ -9,7 +9,6 @@ export interface UploadState {
   display: 'Units' | 'Currency'
   chosenCurrency: string
   unitText: string
-  groupBy: DimensionKey
 }
 
 export const INITIAL_UPLOAD_STATE: UploadState = {
@@ -18,7 +17,6 @@ export const INITIAL_UPLOAD_STATE: UploadState = {
   display: 'Units',
   chosenCurrency: 'EUR',
   unitText: '',
-  groupBy: 'market_type',
 }
 
 // Currencies an uploader can label their file with. A file whose currency
@@ -44,7 +42,7 @@ export function currencyOptions(result: UploadResponse): string[] {
 /**
  * Check a file and put the outcome into the upload state. Resolves to the
  * response when it was accepted, so the caller can keep the file and the
- * viewer's choices for next time. Lives outside the Upload tab because a file
+ * viewer's choices for next time. Lives outside the upload panel because a file
  * restored on reload is checked before anyone opens that tab.
  */
 export async function checkUpload(

@@ -16,7 +16,7 @@ export function Overview({ data }: { data: OverviewResponse }) {
         {formatMonth(data.report.date_max)}, exactly as the platform exported it.
         Amounts are shown in units rather than money, so the pattern of the
         results is on display, not the sums.
-        The Upload tab runs the same checks on an export of your own.
+        The Explore tab can check and explore an export of your own too.
       </p>
       <MetricRow>
         <Metric label={`Matched turnover (${cur})`} value={money(data.matched.turnover, cur)} />

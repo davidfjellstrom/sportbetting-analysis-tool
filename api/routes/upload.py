@@ -1,14 +1,15 @@
-"""Check a new export. One request, everything the Upload tab needs.
+"""Check a new export: what the Explore tab needs before it explores a file.
 
 The file is read from the request body into memory, run through the same
-loader and the same integrity battery as the history, summarised twice —
-in units, and in a currency: the file's own, or another one converted at
-today's ECB rate (:mod:`api.fx`) — and forgotten. Nothing is written to disk
-and nothing is kept between requests.
+loader and the same integrity battery as the history, described — what it
+lacks — and forgotten. Nothing is written to disk
+and nothing is kept between requests. The figures themselves come from
+``POST /api/explore/upload``, which reads the file again with every filter.
 
-Two views, units and a currency, computed together so that switching between
-them is a client-side choice. The unit and the currency each need a new
-request, because each changes every amount.
+The explorer's options come twice, in units and in a currency (the file's own,
+or another one converted at today's ECB rate, :mod:`api.fx`), so switching
+between the two is a client-side choice. The unit and the currency each need a
+new request, because each changes every amount.
 
 A unit is a stake in the currency on screen: "1 unit = 100 SEK" when the file
 is shown in SEK. The file is converted first and then divided by the unit.
@@ -34,14 +35,10 @@ router = APIRouter(prefix="/api", tags=["upload"])
 
 def _view(frame: pd.DataFrame, currency: str, unit: float) -> schemas.UploadView:
     """One view of the file. ``unit`` is one unit in this view's amounts."""
-    matched = loader.matched(frame)
     return schemas.UploadView(
         currency=currency,
-        matched=serialise.totals(matched),
-        cumulative=serialise.period_series(matched),
-        breakdown=serialise.breakdown(agg.with_dimensions(matched, unit)),
         explore_options=None
-        if matched.empty
+        if loader.matched(frame).empty
         else ExploreSource.for_upload(frame, currency, unit).options,
     )
 
@@ -135,7 +132,6 @@ async def upload(
         if unit is not None
         else typical_unit
     )
-    dimensions = agg.available_dimensions(agg.with_dimensions(frame))
     currency_in_file = (
         None if "currency" not in frame.columns or file_currency == "units"
         else file_currency
@@ -153,8 +149,6 @@ async def upload(
             ),
         ),
         checks=serialise.check_report(checks.run_checks(frame)),
-        report=serialise.load_report(loader.describe(frame)),
-        dimensions=[serialise.dimension(d) for d in dimensions],
         missing_columns=list(loader.missing_columns(frame)),
         units=_view(loader.to_units(shown, unit_used), "units", 1.0),
         currency=_view(shown, shown_currency, unit_used),

@@ -9,6 +9,7 @@ day or by month.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from datetime import date
 from typing import Annotated
@@ -49,6 +50,8 @@ class ExploreSource:
     curve_rule: agg.CurveRule
     curve_freq: str
     options: schemas.ExploreOptions
+    #: Whether a response carries the running P/L of the rows in view.
+    over_time: bool = False
 
     @classmethod
     def build(
@@ -91,7 +94,8 @@ class ExploreSource:
     ) -> ExploreSource:
         """An uploaded file, already in the amounts it is to be shown in."""
         matched = loader.matched(frame)
-        return cls.build(matched, currency, agg.upload_curve_rule(matched), unit)
+        source = cls.build(matched, currency, agg.upload_curve_rule(matched), unit)
+        return dataclasses.replace(source, over_time=True)
 
 
 def run(source: ExploreSource, params: ExploreParams) -> schemas.ExploreResponse:
@@ -130,17 +134,11 @@ def run(source: ExploreSource, params: ExploreParams) -> schemas.ExploreResponse
     curves = agg.cumulative_by_slice(frame, dimension.column, source.curve_freq)
     curves = curves[curves["slice"].isin(eligible["slice"])]
 
-    turnover = float(frame["turnover"].sum())
-    pl = float(frame["pl"].sum())
+    totals = serialise.totals(frame)
     return schemas.ExploreOk(
         currency=source.currency,
         view=schemas.ViewTotals(
-            turnover=turnover,
-            pl=pl,
-            roi_pct=100 * pl / turnover,
-            bets=int(frame["n_bets"].fillna(0).sum())
-            if "n_bets" in frame.columns
-            else None,
+            **totals.model_dump(), roi_pct=100 * totals.pl / totals.turnover
         ),
         groups_shown=len(table),
         groups_total=len(table_all),
@@ -149,4 +147,5 @@ def run(source: ExploreSource, params: ExploreParams) -> schemas.ExploreResponse
         eligible=list(eligible["slice"]),
         curves=serialise.curves(curves),
         curve_bucket="day" if source.curve_freq == "D" else "month",
+        cumulative=serialise.period_series(frame) if source.over_time else None,
     )

@@ -24,10 +24,10 @@ The app runs on two kinds of input:
   years of the owner's own betting (Nov 2022 – Sep 2026), rescaled to notional
   units so the app can be run and shown without publishing the amounts. Those
   files are committed; the raw ones never are.
-- **A single file.** The Upload tab takes any Sportmarket Pro CSV, runs the same
-  integrity battery on it, and reports how that file went. It is shown on its
-  own and never merged into the loaded history: once a file is in, Explore
-  works on that file alone, and Overview keeps showing the history.
+- **A single file.** The Explore tab takes any Sportmarket Pro CSV, runs the
+  same integrity battery on it, and explores it. It is shown on its own and
+  never merged into the loaded history: once a file is in, Explore works on
+  that file alone, and Overview keeps showing the history.
 
 No results are published in this repository. Every figure the app shows is
 computed from the files currently under `data/`, by the code in `src/`, with the
@@ -67,7 +67,7 @@ of falling back to `data/raw/`.
 
 ### The app
 
-Three tabs over the modules in `src/`. The figures on every tab are computed
+Two tabs over the modules in `src/`. The figures on every tab are computed
 by `src/aggregations.py` and served by the API; the page displays them and
 computes nothing itself, so the number on screen is the number the tests cover.
 
@@ -76,47 +76,54 @@ rows, bets, fixtures, unmatched rows, and cumulative P/L over time. Bucketed by
 month, or by day when the loaded span is under a quarter, because a fresh export
 bucketed monthly collapses to a single point.
 
-**Upload** — check a new export. The file goes through the same loader and the
-same integrity battery as the history does; a new export is worth nothing until
-it passes the checks the old ones pass. Amounts can be read in units or in a
-currency. Exports are in EUR; choose USD or SEK and every amount is converted at
-today's European Central Bank rate (fetched from frankfurter.dev, kept for an
-hour), with the rate shown under the figures. One rate for the
-whole file, so the figure is one a person can check by hand. Only the two
-currency codes are sent to the rate service, nothing from the file. Then: totals, how the file ran day by day (cumulative curve and signed
-bars), and a breakdown by any of the dimensions below. One file covers a short
-period, so every group in it is small; the captions say so, because a week of
-betting cannot settle anything.
+**Explore** — the segment explorer, and the part of the app that does the most
+work. It explores the history, or a file of your own (below). Filter on fixture
+date, stake range, market type and bookie; group by market type, selection,
+bookie, country, competition, market, event type, position size (what was
+matched on one selection in one match at one bookie, in units), bets-per-row
+bucket, year, month or weekday; sort by turnover, ROI, P/L, fixture count, bets
+per fixture or name; threshold on fixture count. The rows in view are summed up
+(turnover, P/L, ROI, bets, matches), and each slice reports bets, fixtures,
+**bets per fixture**, turnover, P/L and turnover-weighted ROI. Then a ROI bar
+chart of the largest slices, and a comparison of up to eight slices over time
+on one set of axes — cumulative P/L, or cumulative ROI so that slices of
+different size can be compared at all.
+
+**Your own file**, at the top of Explore. The file goes through the same loader
+and the same integrity battery as the history does; a new export is worth
+nothing until it passes the checks the old ones pass. Once it is in, Explore
+explores that file instead of the history, with filters and groupings for the
+columns it has, and adds how the file ran day by day (cumulative curve and
+signed bars), following the filters. The history's own curve is on Overview, so
+it is not repeated here. One file covers a short period, so every group in it
+is small; the captions say so, because a week of betting cannot settle
+anything.
+
+Amounts can be read in units or in a currency. A unit is whatever the viewer
+says it is ("1 unit = 100 EUR"), starting at the file's typical stake, and the
+browser remembers it for the next file. Exports are in EUR; choose USD or SEK
+and every amount, the unit included, is converted at today's European Central
+Bank rate (fetched from frankfurter.dev, kept for an hour), with the rate shown
+on screen. One rate for the whole file, so the figure is one a person can check
+by hand. Only the two currency codes are sent to the rate service, nothing from
+the file.
 
 Sportmarket Pro lets you choose which groupings to export, so an upload needs
 only four columns: `Event` and `Event Day` (the match every figure is clustered
 on) and `Customer turnover` and `Customer P/L` (the result). Every other column
-is optional. One that is missing is named on screen, its dimension leaves the
-breakdown, and any check that needs it is listed as skipped. Nothing is filled
-in: without `Nr of Bets` the bet count reads "—", not the number of rows. The
-history in `data/processed/` is still held to the full schema, because the
+is optional. One that is missing is named on screen, its grouping and filter
+leave the explorer, and any check that needs it is listed as skipped. Nothing is
+filled in: without `Nr of Bets` the bet count reads "—", not the number of rows.
+The history in `data/processed/` is still held to the full schema, because the
 analysis modules group on market, market type and selection.
 
-Once a file is uploaded, **Explore** explores that file instead of the history,
-with filters and groupings for the columns it has. The server keeps nothing
-between requests, so the browser sends the file along with every change of
-filter; it is explored by the same code as the history, never mixed with it.
-Curves run by day rather than by month, and a group earns one with 2% of the
-file's turnover and 20 matches, since the history's bars would leave a month
-of betting with none. The browser keeps the file (IndexedDB, on the viewer's
-own machine) for 24 hours, so a reload restores it; **Remove file** on the
-Upload tab forgets it and brings the history back.
-
-**Explore** — the segment explorer, and the part of the app that does the most
-work. Filter on fixture date, stake range, market type and bookie; group by
-market type, selection, bookie, country, competition, market, event type,
-position size (what was matched on one selection in one match at one bookie,
-in units), bets-per-row bucket, year, month or weekday; sort by turnover, ROI, P/L,
-fixture count, bets per fixture or name; threshold on fixture count. Each slice
-reports bets, fixtures, **bets per fixture**, turnover, P/L and turnover-weighted
-ROI. Then a ROI bar chart of the largest slices, and a comparison of up to eight
-slices over time on one set of axes — cumulative P/L, or cumulative ROI so that
-slices of different size can be compared at all.
+The server keeps nothing between requests, so the browser sends the file along
+with every change of filter; it is explored by the same code as the history,
+never mixed with it. Curves run by day rather than by month, and a group earns
+one with 2% of the file's turnover and 20 matches, since the history's bars
+would leave a month of betting with none. The browser keeps the file
+(IndexedDB, on the viewer's own machine) for 24 hours, so a reload restores it;
+**Remove file** forgets it and brings the history back.
 
 One thing the explorer insists on: slices are aggregated with `dropna=False`,
 so rows carrying no `selection` form their own visible category instead of
@@ -150,7 +157,7 @@ api/                  FastAPI: routing, validation, serialisation. Nothing else.
   routes/             overview, explore, upload.
 frontend/             Vite + React + TypeScript. Displays; never computes.
   src/charts/         Vega-Lite specs, with the chart rules as tested functions.
-  src/tabs/           Overview, Upload, Explore.
+  src/tabs/           Overview, Explore, and the upload panel at the top of Explore.
 tests/                Synthetic fixtures only; no real data.
 reports/              Generated output. Gitignored.
 vercel.json           Region and what to leave out of the function bundle.
@@ -266,7 +273,7 @@ The hypotheses the machinery is built to test. None has a verdict until
 | --- | --- |
 | `loader.py`, `checks.py`, `aggregations.py` | Written and tested. |
 | `api/` | Written and tested on synthetic data. |
-| Overview, Upload, Explore | Working on real exports. |
+| Overview, Explore (with your own file) | Working on real exports. |
 | `odds.py`, `features.py`, `stats.py` | Signatures and contracts only; every function raises. |
 | `validate.py` | Interface proposal, open questions in the module docstring. |
 | Verdicts | No tab yet; the hypotheses are listed under Candidate patterns. |
