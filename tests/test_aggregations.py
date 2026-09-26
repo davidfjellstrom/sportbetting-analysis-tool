@@ -33,7 +33,7 @@ def with_missing_side(matched: pd.DataFrame) -> pd.DataFrame:
 def test_dimensions_are_twelve_in_fixed_order():
     assert [d.key for d in agg.DIMENSIONS] == [
         "market_type", "selection", "bookie", "country", "competition", "market",
-        "event_type", "stake_bucket", "n_bets_bucket", "year", "month", "weekday",
+        "event_type", "position_size", "n_bets_bucket", "year", "month", "weekday",
     ]
 
 
@@ -60,18 +60,45 @@ def test_currency_code_reads_the_column(matched):
 # --------------------------------------------------------------------------
 
 
-def test_stake_bucket_edges_are_left_closed():
+def test_position_size_edges_are_left_closed():
     frame = pd.DataFrame(
         {
             "event_day": pd.to_datetime(["2025-03-01"] * 5),
-            "stake": [0.49, 0.5, 1.0, 10.0, float("nan")],
+            "turnover": [0.49, 0.5, 1.0, 10.0, float("nan")],
+            "n_bets": [1, 1, 1, 1, 1],
+        }
+    )
+    out = agg.with_dimensions(frame)
+    assert list(out["_position_size"].astype("string").fillna("?")) == [
+        "<0.5 u", "0.5-1 u", "1-2 u", "10+ u", "?",
+    ]
+
+
+def test_position_size_is_the_row_matched_in_units():
+    """With 1 unit = 10 EUR: one bet matched for 20 EUR is 2 u; three bets
+    matched for 60 EUR together are one 6 u position; a 50 EUR stake of which
+    only 12 EUR matched is 1.2 u, because what matched is what was played."""
+    frame = pd.DataFrame(
+        {
+            "event_day": pd.to_datetime(["2025-03-01"] * 3),
+            "stake": [20.0, 60.0, 50.0],
+            "turnover": [20.0, 60.0, 12.0],
+            "n_bets": [1, 3, 1],
+        }
+    )
+    out = agg.with_dimensions(frame, unit=10.0)
+    assert list(out["_position_size"].astype("string")) == ["2-3 u", "5-10 u", "1-2 u"]
+
+
+def test_n_bets_bucket():
+    frame = pd.DataFrame(
+        {
+            "event_day": pd.to_datetime(["2025-03-01"] * 5),
+            "turnover": [1.0] * 5,
             "n_bets": [1, 2, 3, 7, 1],
         }
     )
     out = agg.with_dimensions(frame)
-    assert list(out["_stake_bucket"].astype("string").fillna("?")) == [
-        "<0.5", "0.5-1", "1-2", "10+", "?",
-    ]
     assert list(out["_n_bets_bucket"].astype("string")) == ["1", "2", "3+", "3+", "1"]
 
 
@@ -274,8 +301,8 @@ def test_dimension_without_its_column_is_not_available(export_without):
     frame = agg.with_dimensions(_upload(export_without("Bookie", "Stake")))
     keys = {d.key for d in agg.available_dimensions(frame)}
     assert "bookie" not in keys
-    assert "stake_bucket" not in keys
-    assert {"country", "n_bets_bucket", "year"} <= keys
+    # Position size is cut on turnover, which every export carries.
+    assert {"country", "n_bets_bucket", "position_size", "year"} <= keys
 
 
 def test_aggregate_without_n_bets_leaves_bets_unknown(export_without):

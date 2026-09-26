@@ -62,8 +62,10 @@ export function Upload({
   )
   const bars = useMemo(() => (view ? plBarsSpec(view.cumulative, cur) : null), [view, cur])
   const groupBy = result ? groupByFor(result, state.groupBy) : state.groupBy
-  const dimensionLabel =
-    result?.dimensions.find((d) => d.key === groupBy)?.label ?? groupBy
+  const dimension = result?.dimensions.find((d) => d.key === groupBy) ?? {
+    key: groupBy,
+    label: groupBy,
+  }
 
   return (
     <>
@@ -242,7 +244,7 @@ export function Upload({
           </label>
           <SliceTable
             rows={view.breakdown[groupBy] ?? []}
-            dimensionLabel={dimensionLabel}
+            dimension={dimension}
             currency={cur}
           />
           <p className="caption">

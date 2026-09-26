@@ -6,11 +6,9 @@ in units, and in a currency: the file's own, or another one converted at
 today's ECB rate (:mod:`api.fx`) — and forgotten. Nothing is written to disk
 and nothing is kept between requests.
 
-Two views rather than one because they differ in more than a label: the
-stake buckets are cut on the stake column, and in the currency view that
-column is in currency. Switching between the two is therefore a client-side
-choice between two precomputed views. The unit and the currency each need a
-new request, because each changes every amount and every stake bucket.
+Two views, units and a currency, computed together so that switching between
+them is a client-side choice. The unit and the currency each need a new
+request, because each changes every amount.
 
 A unit is a stake in the currency on screen: "1 unit = 100 SEK" when the file
 is shown in SEK. The file is converted first and then divided by the unit.
@@ -34,16 +32,17 @@ from api.explorer import ExploreSource
 router = APIRouter(prefix="/api", tags=["upload"])
 
 
-def _view(frame: pd.DataFrame, currency: str) -> schemas.UploadView:
+def _view(frame: pd.DataFrame, currency: str, unit: float) -> schemas.UploadView:
+    """One view of the file. ``unit`` is one unit in this view's amounts."""
     matched = loader.matched(frame)
     return schemas.UploadView(
         currency=currency,
         matched=serialise.totals(matched),
         cumulative=serialise.period_series(matched),
-        breakdown=serialise.breakdown(agg.with_dimensions(matched)),
+        breakdown=serialise.breakdown(agg.with_dimensions(matched, unit)),
         explore_options=None
         if matched.empty
-        else ExploreSource.for_upload(frame, currency).options,
+        else ExploreSource.for_upload(frame, currency, unit).options,
     )
 
 
@@ -94,17 +93,25 @@ def unit_in(unit: float, unit_currency: str | None, shown: str) -> float:
     return round(unit * rate.rate, 2)
 
 
+def _typical_unit(frame: pd.DataFrame) -> tuple[float | None, float]:
+    """The typical stake (``None`` when nothing matched) and the unit it gives."""
+    typical = loader.typical_stake(frame)
+    typical_stake = round(typical, 2) if typical > 0 else None
+    return typical_stake, typical_stake or 1.0
+
+
 async def read_upload(
-    file: fastapi.UploadFile, unit: float | None, currency: str | None
-) -> tuple[pd.DataFrame, str]:
+    file: fastapi.UploadFile, unit: float | None, currency: str | None, in_units: bool
+) -> tuple[pd.DataFrame, str, float]:
     """An uploaded file as a frame, in ``currency`` (converted) or the file's
-    own, and then in units of ``unit`` when one is given. Returns the frame and
-    its label."""
+    own, and then in units of ``unit`` when ``in_units``. Returns the frame, its
+    label and one unit in its amounts; ``unit`` defaults to the typical stake."""
     frame = _load(await file.read(), file.filename or "upload.csv")
     converted, label, _ = convert(frame, currency)
-    if unit is not None:
-        return loader.to_units(converted, unit), "units"
-    return converted, label
+    unit = unit if unit is not None else _typical_unit(converted)[1]
+    if in_units:
+        return loader.to_units(converted, unit), "units", 1.0
+    return converted, label, unit
 
 
 @router.post("/upload", response_model=schemas.UploadResponse)
@@ -122,12 +129,11 @@ async def upload(
     file_currency = agg.currency_code(frame)
     shown, shown_currency, rate = convert(frame, currency)
 
-    typical = loader.typical_stake(shown)
-    typical_stake = round(typical, 2) if typical > 0 else None
+    typical_stake, typical_unit = _typical_unit(shown)
     unit_used = (
         unit_in(unit, unit_currency, shown_currency)
         if unit is not None
-        else (typical_stake or 1.0)
+        else typical_unit
     )
     dimensions = agg.available_dimensions(agg.with_dimensions(frame))
     currency_in_file = (
@@ -148,10 +154,8 @@ async def upload(
         ),
         checks=serialise.check_report(checks.run_checks(frame)),
         report=serialise.load_report(loader.describe(frame)),
-        dimensions=[
-            schemas.LabelledKey(key=d.key, label=d.label) for d in dimensions
-        ],
+        dimensions=[serialise.dimension(d) for d in dimensions],
         missing_columns=list(loader.missing_columns(frame)),
-        units=_view(loader.to_units(shown, unit_used), "units"),
-        currency=_view(shown, shown_currency),
+        units=_view(loader.to_units(shown, unit_used), "units", 1.0),
+        currency=_view(shown, shown_currency, unit_used),
     )

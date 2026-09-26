@@ -109,8 +109,9 @@ Upload tab forgets it and brings the history back.
 
 **Explore** — the segment explorer, and the part of the app that does the most
 work. Filter on fixture date, stake range, market type and bookie; group by
-market type, selection, bookie, country, competition, market, event type, stake
-bucket, bets-per-row bucket, year, month or weekday; sort by turnover, ROI, P/L,
+market type, selection, bookie, country, competition, market, event type,
+position size (what was matched on one selection in one match at one bookie,
+in units), bets-per-row bucket, year, month or weekday; sort by turnover, ROI, P/L,
 fixture count, bets per fixture or name; threshold on fixture count. Each slice
 reports bets, fixtures, **bets per fixture**, turnover, P/L and turnover-weighted
 ROI. Then a ROI bar chart of the largest slices, and a comparison of up to eight
