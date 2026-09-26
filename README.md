@@ -14,11 +14,6 @@ The server stores nothing — the file is checked in memory and forgotten as soo
 as the answer is sent back. Your browser keeps a copy for 24 hours so a reload
 does not lose it, and a button removes it sooner.
 
-What makes it different: it is built to be skeptical. Bets on the same match
-win or lose together, a hot league is usually just a lucky month, and if you
-compare twenty countries one of them will look brilliant by chance. Most
-betting stats ignore that.
-
 **Try it:** https://sportbetting-analysis-tool.vercel.app
 
 ## How it works
