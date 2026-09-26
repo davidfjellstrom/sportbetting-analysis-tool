@@ -1,5 +1,5 @@
 // A dark navy theme, styled after a reference fintech dashboard rather than
-// the data-viz reference palette the Streamlit app still uses. That palette's
+// the data-viz reference palette the app used to follow. That palette's
 // blue/red pair and eight categorical colours were measured for contrast and
 // colour-blind separation against a specific warm-grey surface (#1a1a19);
 // swapping to navy is a deliberate trade of that validation for the closer

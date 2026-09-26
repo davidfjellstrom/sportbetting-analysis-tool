@@ -169,7 +169,7 @@ class ExploreOk(BaseModel):
 
 
 class ExploreStopped(BaseModel):
-    """The explorer has nothing to show and says why, as the Streamlit app does."""
+    """The explorer has nothing to show and says why."""
 
     status: Literal["stake_range_invalid", "empty"]
     message: str

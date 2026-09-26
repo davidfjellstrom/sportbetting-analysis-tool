@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Help } from './Help'
 
 /**
- * Streamlit's number_input: the value is committed on Enter or when the
+ * A number input whose value is committed on Enter or when the
  * field loses focus, not on every keystroke, so a request is not fired for
  * each digit typed.
  */

@@ -15,8 +15,7 @@ export interface ExploreState {
   topN: number
   measure: Measure
   /** What is picked for the comparison, and the eligible list it was picked
-   * against — a new eligible list resets the pick to the first three, as a
-   * Streamlit multiselect does when its options change. */
+   * against — a new eligible list resets the pick to the first three. */
   picked: string[]
   pickedFor: string
 }

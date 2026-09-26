@@ -1,4 +1,4 @@
-// The four Streamlit call-outs the app uses, as one component.
+// The call-out boxes the app uses (info, warning, error), as one component.
 export function Alert({
   kind,
   icon,

@@ -5,8 +5,6 @@ data/raw/
 reports/
 notebooks/
 tests/
-app/
-.streamlit/
 .venv/
 *.egg-info/
 .pytest_cache/

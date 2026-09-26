@@ -1,4 +1,4 @@
-// Number formatting that matches the Python app character for character.
+// Number formatting, following Python's format specs character for character.
 // Formatting is a display concern; every number arrives computed from the API.
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -12,7 +12,7 @@ const SUFFIX_CURRENCIES = new Set(['SEK'])
 
 /**
  * Python's `f"{value:,.{decimals}f}"`, including its rounding: half to even,
- * so 2.5 prints as 2 on both sides and the two apps never disagree by one.
+ * so 2.5 prints as 2, as it does in Python.
  */
 export function fixed(value: number, decimals = 0): string {
   return value.toLocaleString('en-US', {

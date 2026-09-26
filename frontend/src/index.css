@@ -1,8 +1,6 @@
 /* A dark navy theme with card panels and a glowing accent, styled after a
-   reference fintech dashboard. It has replaced the Streamlit app's warm-grey
-   theme in src/theme.ts's comment: that palette's contrast and colour-blind
-   validation was measured against the old surface colour and has not been
-   re-run against this one — see src/theme.ts. */
+   reference fintech dashboard. The colours have not been validated for
+   contrast or colour blindness — see src/theme.ts. */
 
 :root {
   --page: #05070c;

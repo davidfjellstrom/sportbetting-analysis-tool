@@ -1,4 +1,4 @@
-"""aggregations.py: the figures both apps show, on synthetic data only."""
+"""aggregations.py: the figures the app shows, on synthetic data only."""
 
 from __future__ import annotations
 
@@ -35,7 +35,6 @@ def test_dimensions_are_twelve_in_fixed_order():
         "market_type", "selection", "bookie", "country", "competition", "market",
         "event_type", "stake_bucket", "n_bets_bucket", "year", "month", "weekday",
     ]
-    assert agg.DIMENSION_BY_LABEL["Market (sport / period)"].column == "market"
 
 
 def test_sorts_have_unique_keys_and_labels():
@@ -154,7 +153,8 @@ def test_eligible_for_curves_needs_both_thresholds():
             "roi_pct": [0.0] * 4,
         }
     )
-    assert list(agg.eligible_for_curves(table)["slice"]) == ["big"]
+    rule = agg.history_curve_rule()
+    assert list(agg.eligible_for_curves(table, rule)["slice"]) == ["big"]
 
 
 # --------------------------------------------------------------------------
@@ -224,27 +224,25 @@ def test_option_values_are_sorted_strings_without_missing(with_missing_side):
 
 
 def test_by_period_months_over_a_long_span(matched):
-    table, tick_fmt, label = agg.by_period(matched)
-    assert label == "Month"
-    assert tick_fmt == "%b %Y"
+    table, bucket = agg.by_period(matched)
+    assert bucket == "month"
     assert list(table["cumulative_pl"]) == pytest.approx(list(table["pl"].cumsum()))
     assert table["turnover"].sum() == pytest.approx(matched["turnover"].sum())
 
 
 def test_by_period_days_over_a_short_span(matched):
     short = matched[matched["event_day"] >= "2025-01-01"]
-    table, tick_fmt, label = agg.by_period(short)
-    assert label == "Day"
-    assert tick_fmt == "%d %b"
+    table, bucket = agg.by_period(short)
+    assert bucket == "day"
     assert len(table) == short["event_day"].dt.normalize().nunique()
     assert table["label"].iloc[0] == "01 Mar 2025"
     assert table["tick"].iloc[0] == "01 Mar"
 
 
 def test_by_period_survives_an_empty_frame(matched):
-    table, _, label = agg.by_period(matched.iloc[0:0])
+    table, bucket = agg.by_period(matched.iloc[0:0])
     assert table.empty
-    assert label == "Month"
+    assert bucket == "month"
 
 
 def test_cumulative_by_slice(with_missing_side):

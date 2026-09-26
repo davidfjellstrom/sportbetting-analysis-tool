@@ -7,8 +7,9 @@ Read this before writing or modifying any code in this repo.
 An analysis app for ~4 years of personal sports betting history exported from
 Sportmarket Pro (Nov 2022 – Sep 2026). It loads the exports, checks them,
 lets the owner explore performance by segment, and tests candidate patterns
-with statistics that respect how the data is structured. The Streamlit app in
-`app/` is the front end; the modules in `src/` do the work.
+with statistics that respect how the data is structured. The React app in
+`frontend/`, served by the FastAPI layer in `api/`, is the front end; the
+modules in `src/` do the work.
 
 That is the whole scope, and it is enough. It does not need to become a
 betting model, a prediction engine or a product. What it does need is honesty
@@ -162,7 +163,7 @@ report, with verdicts, including the ones that fail.
 ## Division of labour
 
 **You may write:** repo scaffolding, `loader.py`, test harness setup, the
-Streamlit app in `app/`, README structure, linting config.
+web app in `api/` and `frontend/`, README structure, linting config.
 
 **You must not write unprompted:** `odds.py`, `features.py`, `stats.py`. These
 contain the censoring logic, the `both_sides_flag` grouping and the clustered

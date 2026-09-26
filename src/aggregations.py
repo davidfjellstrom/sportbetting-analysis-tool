@@ -1,8 +1,8 @@
 """What the apps show, computed once, in one place.
 
-Both front ends — the Streamlit app and the API behind the React app — call
-these functions and nothing else for their figures, so a number on one screen
-is the same number on the other by construction rather than by care.
+The API behind the React app calls these functions and nothing else for its
+figures, so every number on screen is one the tests in
+``tests/test_aggregations.py`` cover.
 
 Everything here is presentation-level: bins for an explorer to group by,
 per-slice totals, per-period totals. None of it is an analysis feature, none
@@ -25,7 +25,7 @@ from datetime import date
 import pandas as pd
 
 # --------------------------------------------------------------------------
-# Vocabulary shared by both apps: what can be grouped by, how it can be sorted
+# Vocabulary: what can be grouped by, how it can be sorted
 # --------------------------------------------------------------------------
 
 
@@ -58,7 +58,6 @@ DIMENSIONS: tuple[Dimension, ...] = (
     Dimension("weekday", "Weekday", "_weekday"),
 )
 DIMENSION_BY_KEY: dict[str, Dimension] = {d.key: d for d in DIMENSIONS}
-DIMENSION_BY_LABEL: dict[str, Dimension] = {d.label: d for d in DIMENSIONS}
 
 
 @dataclass(frozen=True)
@@ -84,7 +83,6 @@ SORTS: tuple[Sort, ...] = (
     Sort("name_asc", "Name", "slice", True),
 )
 SORT_BY_KEY: dict[str, Sort] = {s.key: s for s in SORTS}
-SORT_BY_LABEL: dict[str, Sort] = {s.label: s for s in SORTS}
 
 #: In units, where 1 is the typical stake: a quarter of matched rows sit
 #: below 0.5, half below 1, nine in ten below 3.5. Left-closed: 0.5 is "0.5-1".
@@ -252,11 +250,8 @@ def upload_curve_rule(frame: pd.DataFrame) -> CurveRule:
     )
 
 
-def eligible_for_curves(
-    table_all: pd.DataFrame, rule: CurveRule | None = None
-) -> pd.DataFrame:
+def eligible_for_curves(table_all: pd.DataFrame, rule: CurveRule) -> pd.DataFrame:
     """The slices big enough for a cumulative curve, largest first."""
-    rule = rule or history_curve_rule()
     keep = table_all["turnover"] >= rule.min_turnover
     if rule.min_bets is not None:
         keep &= table_all["bets"] >= rule.min_bets
@@ -347,18 +342,17 @@ def curve_freq(frame: pd.DataFrame) -> str:
     return "D" if span <= DAILY_BUCKET_MAX_SPAN else "M"
 
 
-def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
-    """Turnover, P/L and running P/L per bucket, plus how to label a bucket.
+def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    """Turnover, P/L and running P/L per bucket, plus ``"day"`` or ``"month"``.
 
-    Returns ``(table, tick_format, label)`` where ``label`` is ``"Day"`` or
-    ``"Month"``. Two formats per resolution: the axis gets the short one (a
-    daily axis repeating the same year on every tick just collides with
-    itself), the tooltip the unambiguous one.
+    Two labels per bucket: ``tick`` for the axis is the short one (a daily axis
+    repeating the same year on every tick just collides with itself), ``label``
+    for the tooltip the unambiguous one.
     """
-    freq, fmt, tick_fmt, label = (
-        ("D", "%d %b %Y", "%d %b", "Day")
+    freq, fmt, tick_fmt, bucket = (
+        ("D", "%d %b %Y", "%d %b", "day")
         if curve_freq(frame) == "D"
-        else ("M", "%b %Y", "%b %Y", "Month")
+        else ("M", "%b %Y", "%b %Y", "month")
     )
     out = (
         frame.assign(period=frame["event_day"].dt.to_period(freq))
@@ -369,7 +363,7 @@ def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str, str]:
     out["cumulative_pl"] = out["pl"].cumsum()
     out["label"] = out["period"].dt.strftime(fmt)
     out["tick"] = out["period"].dt.strftime(tick_fmt)
-    return out, tick_fmt, label
+    return out, bucket
 
 
 def cumulative_by_slice(
