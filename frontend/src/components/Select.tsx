@@ -135,7 +135,14 @@ export function Select({
         </span>
       </button>
       {open && (
-        <ul className="select-list" role="listbox" id={listboxId} ref={listRef}>
+        <ul
+          className="select-list"
+          role="listbox"
+          id={listboxId}
+          ref={listRef}
+          // Leaving the options with the mouse closes the list, as a menu does.
+          onMouseLeave={() => setOpen(false)}
+        >
           {options.map((o, i) => (
             <li
               key={o.value}
