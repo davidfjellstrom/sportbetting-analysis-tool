@@ -19,7 +19,7 @@ DimensionKey = Literal[
     "competition",
     "market",
     "event_type",
-    "stake_bucket",
+    "position_size",
     "n_bets_bucket",
     "year",
     "month",
@@ -112,6 +112,8 @@ class OverviewResponse(BaseModel):
 class LabelledKey(BaseModel):
     key: str
     label: str
+    #: A line of explanation, when the label alone does not say enough.
+    help: str | None = None
 
 
 class CompareRules(BaseModel):

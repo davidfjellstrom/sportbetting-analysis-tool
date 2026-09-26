@@ -90,15 +90,22 @@ export default function App() {
   const uploadView =
     uploaded && (upload.display === 'Units' ? uploaded.units : uploaded.currency)
   // The explorer converts the file the same way the Upload tab shows it: into
-  // the chosen currency, and then into units of that currency.
-  const uploadUnit = upload.display === 'Units' ? uploaded?.file.unit_used : undefined
+  // the chosen currency, and then into units of that currency. The unit goes
+  // along in either view, because position sizes are always in units.
+  const uploadUnit = uploaded?.file.unit_used
+  const uploadInUnits = upload.display === 'Units'
   const uploadCurrency = displayCurrency(uploaded?.currency.currency)
   const uploadOptions = uploadView?.explore_options ?? null
   const uploadFile = upload.file
   const fetchUpload = useCallback(
     (query: ExploreQuery) =>
-      postExploreUpload(uploadFile!, { unit: uploadUnit, currency: uploadCurrency }, query),
-    [uploadFile, uploadUnit, uploadCurrency],
+      postExploreUpload(
+        uploadFile!,
+        { unit: uploadUnit, currency: uploadCurrency },
+        uploadInUnits,
+        query,
+      ),
+    [uploadFile, uploadUnit, uploadCurrency, uploadInUnits],
   )
 
   // The explorer's filters start over for each file, unit and view, because

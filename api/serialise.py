@@ -18,6 +18,10 @@ def _finite(value: float) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def dimension(d: agg.Dimension) -> schemas.LabelledKey:
+    return schemas.LabelledKey(key=d.key, label=d.label, help=d.help)
+
+
 def check_report(report: checks.CheckReport) -> schemas.CheckReport:
     return schemas.CheckReport(
         checks=[

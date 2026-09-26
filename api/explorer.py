@@ -52,10 +52,15 @@ class ExploreSource:
 
     @classmethod
     def build(
-        cls, matched: pd.DataFrame, currency: str, curve_rule: agg.CurveRule
+        cls,
+        matched: pd.DataFrame,
+        currency: str,
+        curve_rule: agg.CurveRule,
+        unit: float = 1.0,
     ) -> ExploreSource:
-        """``matched`` is the matched rows only, as from :func:`loader.matched`."""
-        frame = agg.with_dimensions(matched)
+        """``matched`` is the matched rows only, as from :func:`loader.matched`;
+        ``unit`` is one unit in its amounts, for the position sizes."""
+        frame = agg.with_dimensions(matched, unit)
         dims = agg.available_dimensions(frame)
         options = schemas.ExploreOptions(
             currency=currency,
@@ -69,7 +74,7 @@ class ExploreSource:
             bookies=agg.option_values(frame, "bookie")
             if "bookie" in frame.columns
             else [],
-            dimensions=[schemas.LabelledKey(key=d.key, label=d.label) for d in dims],
+            dimensions=[serialise.dimension(d) for d in dims],
             sorts=[schemas.LabelledKey(key=s.key, label=s.label) for s in agg.SORTS],
             compare=schemas.CompareRules(
                 min_turnover=curve_rule.min_turnover,
@@ -81,10 +86,12 @@ class ExploreSource:
         return cls(frame, currency, curve_rule, agg.curve_freq(frame), options)
 
     @classmethod
-    def for_upload(cls, frame: pd.DataFrame, currency: str) -> ExploreSource:
-        """An uploaded file, already in the unit it is to be shown in."""
+    def for_upload(
+        cls, frame: pd.DataFrame, currency: str, unit: float
+    ) -> ExploreSource:
+        """An uploaded file, already in the amounts it is to be shown in."""
         matched = loader.matched(frame)
-        return cls.build(matched, currency, agg.upload_curve_rule(matched))
+        return cls.build(matched, currency, agg.upload_curve_rule(matched), unit)
 
 
 def run(source: ExploreSource, params: ExploreParams) -> schemas.ExploreResponse:

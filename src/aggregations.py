@@ -34,12 +34,14 @@ class Dimension:
     """One thing the explorer can group by.
 
     ``key`` is the stable identifier the API speaks, ``label`` what a person
-    reads, ``column`` where the values live after :func:`with_dimensions`.
+    reads, ``column`` where the values live after :func:`with_dimensions`,
+    ``help`` a line for the person when the label alone does not say enough.
     """
 
     key: str
     label: str
     column: str
+    help: str | None = None
 
 
 #: Raw export columns first, then bins derived here for presentation only.
@@ -51,7 +53,12 @@ DIMENSIONS: tuple[Dimension, ...] = (
     Dimension("competition", "Competition", "competition"),
     Dimension("market", "Market (sport / period)", "market"),
     Dimension("event_type", "Event type", "event_type"),
-    Dimension("stake_bucket", "Stake bucket", "_stake_bucket"),
+    Dimension(
+        "position_size",
+        "Position size",
+        "_position_size",
+        help="Total matched on one selection in one match at one bookie, in units.",
+    ),
     Dimension("n_bets_bucket", "Bets aggregated on the row", "_n_bets_bucket"),
     Dimension("year", "Year", "_year"),
     Dimension("month", "Month", "_month"),
@@ -84,10 +91,12 @@ SORTS: tuple[Sort, ...] = (
 )
 SORT_BY_KEY: dict[str, Sort] = {s.key: s for s in SORTS}
 
-#: In units, where 1 is the typical stake: a quarter of matched rows sit
-#: below 0.5, half below 1, nine in ten below 3.5. Left-closed: 0.5 is "0.5-1".
-STAKE_BINS: list[float] = [0, 0.5, 1, 2, 3, 5, 10, float("inf")]
-STAKE_LABELS: list[str] = ["<0.5", "0.5-1", "1-2", "2-3", "3-5", "5-10", "10+"]
+#: A position's matched turnover in units: 1 is one unit, whatever the amounts
+#: are shown in. Left-closed: 0.5 is "0.5-1 u".
+POSITION_BINS: list[float] = [0, 0.5, 1, 2, 3, 5, 10, float("inf")]
+POSITION_LABELS: list[str] = [
+    "<0.5 u", "0.5-1 u", "1-2 u", "2-3 u", "3-5 u", "5-10 u", "10+ u"
+]
 
 #: Right-closed, so 1 is "1", 2 is "2", anything above is "3+".
 N_BETS_BINS: list[float] = [0, 1, 2, float("inf")]
@@ -142,8 +151,16 @@ def currency_code(frame: pd.DataFrame) -> str:
 # --------------------------------------------------------------------------
 
 
-def with_dimensions(frame: pd.DataFrame) -> pd.DataFrame:
+def with_dimensions(frame: pd.DataFrame, unit: float = 1.0) -> pd.DataFrame:
     """Attach the presentation-only bins the explorer offers.
+
+    ``unit`` is what one unit is in the frame's amounts: 1 when they are
+    already in units, the viewer's unit when they are in a currency. The
+    position size is a row's matched ``turnover`` in units. A row holds every
+    bet on one selection in one match at one bookie; the export does not say
+    how the bets split, but their total is exact, and bets on one selection
+    in one match win or lose together anyway. In units, it means the same
+    thing whichever currency is on screen.
 
     Returns a copy; the caller's frame is left alone, which matters when that
     frame is the one cached copy of the history that every request shares.
@@ -155,10 +172,12 @@ def with_dimensions(frame: pd.DataFrame) -> pd.DataFrame:
     out["_year"] = out["event_day"].dt.year.astype("string")
     out["_month"] = out["event_day"].dt.to_period("M").astype("string")
     out["_weekday"] = out["event_day"].dt.day_name().astype("string")
-    if "stake" in out.columns:
-        out["_stake_bucket"] = pd.cut(
-            out["stake"], bins=STAKE_BINS, labels=STAKE_LABELS, right=False
-        )
+    out["_position_size"] = pd.cut(
+        out["turnover"] / unit,
+        bins=POSITION_BINS,
+        labels=POSITION_LABELS,
+        right=False,
+    )
     if "n_bets" in out.columns:
         out["_n_bets_bucket"] = pd.cut(
             out["n_bets"], bins=N_BETS_BINS, labels=N_BETS_LABELS

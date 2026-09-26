@@ -1,14 +1,15 @@
-import type { SliceRow } from '../api/types'
+import type { LabelledKey, SliceRow } from '../api/types'
 import { UNKNOWN, fixed, integer, signed, tableMoney } from '../format'
 import { Help } from './Help'
 
 export function SliceTable({
   rows,
-  dimensionLabel,
+  dimension,
   currency,
 }: {
   rows: SliceRow[]
-  dimensionLabel: string
+  /** What the rows are grouped by, as the API labels it. */
+  dimension: LabelledKey
   currency: string
 }) {
   return (
@@ -16,7 +17,9 @@ export function SliceTable({
       <table className="slices">
         <thead>
           <tr>
-            <th>{dimensionLabel}</th>
+            <th>
+              {dimension.label} {dimension.help && <Help text={dimension.help} />}
+            </th>
             <th className="num">Bets</th>
             <th className="num">Matches</th>
             <th className="num">

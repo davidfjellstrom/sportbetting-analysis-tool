@@ -56,15 +56,18 @@ export function getExplore(query: ExploreQuery): Promise<ExploreResponse> {
 
 /**
  * Explore an uploaded file. The server keeps nothing between requests, so the
- * file travels with every one. Without a unit the amounts are in the chosen
- * currency, converted at today's rate.
+ * file travels with every one. Amounts are in the chosen currency, converted
+ * at today's rate, or in units of `choice.unit` when `inUnits`; position
+ * sizes are in units either way.
  */
 export function postExploreUpload(
   file: File,
   choice: UploadChoice,
+  inUnits: boolean,
   query: ExploreQuery,
 ): Promise<ExploreResponse> {
   const body = uploadBody(file, choice)
+  body.append('in_units', String(inUnits))
   return request(`/api/explore/upload?${queryString(query)}`, { method: 'POST', body })
 }
 

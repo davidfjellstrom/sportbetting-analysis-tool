@@ -277,13 +277,35 @@ def test_upload_returns_both_views(client, modern_csv: Path):
         assert turnovers == sorted(turnovers, reverse=True)
 
 
-def test_upload_stake_buckets_differ_between_views(client, modern_csv: Path):
-    """Stake buckets are cut on the stake column, so the two views disagree."""
-    body = strict_json(post_csv(client, modern_csv))
-    in_currency = {r["slice"] for r in body["currency"]["breakdown"]["stake_bucket"]}
-    in_units = {r["slice"] for r in body["units"]["breakdown"]["stake_bucket"]}
-    assert in_currency == {"10+"}
-    assert in_units != in_currency
+def test_upload_position_sizes_are_the_same_in_both_views(client, modern_csv: Path):
+    """Position sizes are in units, whatever the amounts are shown in."""
+    body = strict_json(post_csv(client, modern_csv, unit=10))
+    in_currency = body["currency"]["breakdown"]["position_size"]
+    in_units = body["units"]["breakdown"]["position_size"]
+    assert [r["slice"] for r in in_currency] == [r["slice"] for r in in_units]
+    assert all(r["slice"].endswith(" u") for r in in_units)
+    help_text = {d["key"]: d["help"] for d in body["dimensions"]}
+    assert "one bookie" in help_text["position_size"]
+    assert help_text["market_type"] is None
+
+
+def test_explore_upload_in_currency_keeps_unit_position_sizes(client, modern_csv: Path):
+    def buckets(**form):
+        with modern_csv.open("rb") as fh:
+            body = strict_json(
+                client.post(
+                    "/api/explore/upload",
+                    files={"file": (modern_csv.name, fh, "text/csv")},
+                    data=form,
+                    params={"group_by": "position_size"},
+                )
+            )
+        return body["currency"], sorted(r["slice"] for r in body["table"])
+
+    units_label, in_units = buckets(unit="10")
+    eur_label, in_eur = buckets(unit="10", in_units="false")
+    assert (units_label, eur_label) == ("units", "EUR")
+    assert in_units == in_eur
 
 
 def test_upload_with_a_chosen_unit(client, modern_csv: Path):
@@ -337,7 +359,9 @@ def test_upload_with_only_the_required_columns(client, export_without):
     optional = [h for h in RAW_HEADER if h not in UPLOAD_REQUIRED_HEADERS]
     body = strict_json(post_csv(client, export_without(*optional)))
     assert sorted(body["missing_columns"]) == sorted(optional)
-    assert [d["key"] for d in body["dimensions"]] == ["year", "month", "weekday"]
+    assert [d["key"] for d in body["dimensions"]] == [
+        "position_size", "year", "month", "weekday"
+    ]
     assert body["units"]["matched"]["fixtures"] == 3
     assert body["checks"]["ok"]
     skipped = [c["name"] for c in body["checks"]["checks"] if c["detail"].startswith("skipped:")]

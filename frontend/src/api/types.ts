@@ -9,7 +9,7 @@ export type DimensionKey =
   | 'competition'
   | 'market'
   | 'event_type'
-  | 'stake_bucket'
+  | 'position_size'
   | 'n_bets_bucket'
   | 'year'
   | 'month'
@@ -98,6 +98,8 @@ export interface OverviewResponse {
 export interface LabelledKey {
   key: string
   label: string
+  // A line of explanation, when the label alone does not say enough.
+  help?: string | null
 }
 
 // What a group needs for its own curve. null: that bar does not apply.

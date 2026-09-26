@@ -44,14 +44,18 @@ async def explore_upload(
     params: Annotated[explorer.ExploreParams, Depends()],
     unit: Annotated[float | None, Form(gt=0)] = None,
     currency: Annotated[schemas.DisplayCurrency | None, Form()] = None,
+    in_units: Annotated[bool | None, Form()] = None,
 ) -> schemas.ExploreResponse:
     """Explore an uploaded file, in ``currency`` (converted at today's rate)
-    or the file's own, and in units of ``unit`` of that currency when given."""
-    frame, currency_label = await read_upload(file, unit, currency)
+    or the file's own. ``unit`` is one unit in that currency (default: the
+    typical stake); the amounts are in units when ``in_units``, which defaults
+    to whether a unit was given. Position sizes are in units either way."""
+    in_units = unit is not None if in_units is None else in_units
+    frame, currency_label, unit_size = await read_upload(file, unit, currency, in_units)
     if loader.matched(frame).empty:
         return schemas.ExploreStopped(
             status="empty", message="No bet in this file was matched."
         )
     return explorer.run(
-        explorer.ExploreSource.for_upload(frame, currency_label), params
+        explorer.ExploreSource.for_upload(frame, currency_label, unit_size), params
     )
