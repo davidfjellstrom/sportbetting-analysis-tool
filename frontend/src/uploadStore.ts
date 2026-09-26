@@ -74,6 +74,34 @@ export async function loadUpload(now = Date.now()): Promise<StoredUpload | null>
   }
 }
 
+// The viewer's own unit ("1 unit = 100 EUR"), so the next file starts from it
+// rather than from that file's typical stake. Small, so localStorage is enough.
+const UNIT_KEY = 'sportmarket-analysis:unit'
+
+export interface UnitPreference {
+  unit: number
+  currency: string
+}
+
+export function loadUnitPreference(): UnitPreference | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(UNIT_KEY) ?? 'null')
+    return typeof stored?.unit === 'number' && typeof stored?.currency === 'string'
+      ? stored
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function saveUnitPreference(preference: UnitPreference): void {
+  try {
+    localStorage.setItem(UNIT_KEY, JSON.stringify(preference))
+  } catch {
+    // Not remembered; the next file starts from its typical stake.
+  }
+}
+
 export async function clearUpload(): Promise<void> {
   try {
     await run('readwrite', (store) => store.delete(KEY))

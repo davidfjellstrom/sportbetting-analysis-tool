@@ -25,6 +25,11 @@ export const INITIAL_UPLOAD_STATE: UploadState = {
 // column names something else gets that added at the front of the list.
 const DISPLAY_CURRENCIES = ['EUR', 'USD', 'SEK']
 
+/** The currency, if the API can convert to it; a file in units has none. */
+export function displayCurrency(code: string | undefined): string | undefined {
+  return code !== undefined && DISPLAY_CURRENCIES.includes(code) ? code : undefined
+}
+
 // Vercel rejects a request body above this before the API sees it; saying so
 // here is clearer than a bare 413.
 const MAX_UPLOAD_BYTES = 4.5 * 1024 * 1024
@@ -36,24 +41,17 @@ export function currencyOptions(result: UploadResponse): string[] {
   return options
 }
 
-function defaultUnitText(result: UploadResponse): string {
-  return result.file.typical_stake === null ? '1.00' : result.file.typical_stake.toFixed(2)
-}
-
 /**
- * Check a file and put the outcome into the upload state. Resolves to whether
- * it was accepted, so the caller can keep it for the next reload. Lives outside
- * the Upload tab because a file restored on reload is checked before anyone
- * opens that tab.
- *
- * An empty ``choice`` is a fresh file and resets the viewer's choices; a unit
- * or a currency re-checks the same file and keeps the rest.
+ * Check a file and put the outcome into the upload state. Resolves to the
+ * response when it was accepted, so the caller can keep the file and the
+ * viewer's choices for next time. Lives outside the Upload tab because a file
+ * restored on reload is checked before anyone opens that tab.
  */
 export async function checkUpload(
   file: File,
   choice: UploadChoice,
   setState: (update: (s: UploadState) => UploadState) => void,
-): Promise<boolean> {
+): Promise<UploadResponse | null> {
   if (file.size > MAX_UPLOAD_BYTES) {
     setState((s) => ({
       ...s,
@@ -62,7 +60,7 @@ export async function checkUpload(
       result: undefined,
       error: `${file.name} is ${(file.size / 1024 / 1024).toFixed(2)} MB; files above 4.5 MB cannot be checked.`,
     }))
-    return false
+    return null
   }
   setState((s) => ({ ...s, file, status: 'checking', error: undefined }))
   try {
@@ -72,12 +70,9 @@ export async function checkUpload(
       status: 'done',
       result,
       chosenCurrency: result.currency.currency,
-      unitText:
-        choice.unit === undefined && choice.currency === undefined
-          ? defaultUnitText(result)
-          : result.file.unit_used.toFixed(2),
+      unitText: result.file.unit_used.toFixed(2),
     }))
-    return true
+    return result
   } catch (error: unknown) {
     const message = error instanceof ApiError ? error.message : String(error)
     setState((s) =>
@@ -87,6 +82,6 @@ export async function checkUpload(
         ? { ...s, status: 'done', error: message }
         : { ...s, status: 'error', result: undefined, error: message },
     )
-    return false
+    return null
   }
 }

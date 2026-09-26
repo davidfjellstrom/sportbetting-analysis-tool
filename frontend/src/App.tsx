@@ -15,8 +15,19 @@ import { Overview } from './tabs/Overview'
 import { Explore } from './tabs/Explore'
 import { initialExploreState, type ExploreState } from './tabs/exploreState'
 import { Upload } from './tabs/Upload'
-import { INITIAL_UPLOAD_STATE, checkUpload, type UploadState } from './tabs/uploadState'
-import { clearUpload, loadUpload, saveUpload } from './uploadStore'
+import {
+  INITIAL_UPLOAD_STATE,
+  checkUpload,
+  displayCurrency,
+  type UploadState,
+} from './tabs/uploadState'
+import {
+  clearUpload,
+  loadUnitPreference,
+  loadUpload,
+  saveUnitPreference,
+  saveUpload,
+} from './uploadStore'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -48,10 +59,20 @@ export default function App() {
   // history. The file is kept in this browser (uploadStore) so a reload
   // restores it; the server never keeps it.
 
-  const onCheck = useCallback((file: File, choice: UploadChoice = {}) => {
-    void checkUpload(file, choice, setUpload).then((accepted) => {
-      if (accepted) void saveUpload({ file, savedAt: Date.now(), ...choice })
-    })
+  // A new file (no choice yet) starts from the unit the viewer set last time.
+  // A choice the viewer makes — a unit, a currency — is remembered for the
+  // next file; a typical stake the app picked is not.
+  const onCheck = useCallback(async (file: File, choice?: UploadChoice) => {
+    const remembered = choice === undefined ? loadUnitPreference() : null
+    const asked = choice ?? (remembered ? { unit: remembered.unit, currency: remembered.currency } : {})
+    let result = await checkUpload(file, asked, setUpload)
+    // A remembered currency cannot apply to every file (one already in units).
+    if (!result && remembered) result = await checkUpload(file, {}, setUpload)
+    if (!result) return
+    const currency = displayCurrency(result.currency.currency)
+    const unit = asked.unit !== undefined ? result.file.unit_used : undefined
+    void saveUpload({ file, savedAt: Date.now(), unit, currency })
+    if (unit !== undefined && currency) saveUnitPreference({ unit, currency })
   }, [])
 
   const onRemove = useCallback(() => {
@@ -61,18 +82,17 @@ export default function App() {
 
   useEffect(() => {
     void loadUpload().then((stored) => {
-      if (stored) onCheck(stored.file, { unit: stored.unit, currency: stored.currency })
+      if (stored) void onCheck(stored.file, { unit: stored.unit, currency: stored.currency })
     })
   }, [onCheck])
 
   const uploaded = upload.status === 'done' ? upload.result : undefined
   const uploadView =
     uploaded && (upload.display === 'Units' ? uploaded.units : uploaded.currency)
+  // The explorer converts the file the same way the Upload tab shows it: into
+  // the chosen currency, and then into units of that currency.
   const uploadUnit = upload.display === 'Units' ? uploaded?.file.unit_used : undefined
-  // The currency view is converted on the server, so its options already
-  // carry the right label; the explorer converts the same way.
-  const uploadCurrency =
-    upload.display === 'Currency' ? uploaded?.currency.currency : undefined
+  const uploadCurrency = displayCurrency(uploaded?.currency.currency)
   const uploadOptions = uploadView?.explore_options ?? null
   const uploadFile = upload.file
   const fetchUpload = useCallback(

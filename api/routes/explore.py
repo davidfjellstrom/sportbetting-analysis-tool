@@ -45,9 +45,8 @@ async def explore_upload(
     unit: Annotated[float | None, Form(gt=0)] = None,
     currency: Annotated[schemas.DisplayCurrency | None, Form()] = None,
 ) -> schemas.ExploreResponse:
-    """Explore an uploaded file. With ``unit`` the amounts are in units of that
-    size, as on the Upload tab; without it they are in ``currency``, converted
-    at today's rate, or in the file's own currency."""
+    """Explore an uploaded file, in ``currency`` (converted at today's rate)
+    or the file's own, and in units of ``unit`` of that currency when given."""
     frame, currency_label = await read_upload(file, unit, currency)
     if loader.matched(frame).empty:
         return schemas.ExploreStopped(

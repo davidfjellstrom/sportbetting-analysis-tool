@@ -196,6 +196,7 @@ class FxRate(BaseModel):
 class UploadFile(BaseModel):
     name: str
     currency_in_file: str | None
+    #: This and ``unit_used`` are in the currency view's currency.
     typical_stake: float | None
     unit_used: float
     #: The rate the currency view was converted at; ``None`` when it shows the

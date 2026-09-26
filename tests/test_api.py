@@ -485,8 +485,29 @@ def test_upload_converts_the_currency_view(client, modern_csv: Path, sek_rate):
     assert sek["file"]["fx"] == {
         "base": "EUR", "target": "SEK", "rate": 11.0, "date": "2026-09-25"
     }
-    # Units are in the file's own currency; converting must not touch them.
-    assert sek["units"] == eur["units"]
+    # The unit follows the currency: the typical stake is now in SEK, so the
+    # amounts in units barely move (only the rounding of the stake differs).
+    assert sek["file"]["typical_stake"] == pytest.approx(
+        11.0 * eur["file"]["typical_stake"], abs=0.01
+    )
+    assert sek["units"]["matched"]["pl"] == pytest.approx(
+        eur["units"]["matched"]["pl"], rel=1e-3
+    )
+
+
+def test_a_unit_keeps_its_worth_in_another_currency(client, modern_csv, sek_rate):
+    """1 unit = 10 EUR, shown in SEK, is 1 unit = 110 SEK — not 10 SEK."""
+    eur = strict_json(post_csv(client, modern_csv, unit=10))
+    sek = strict_json(
+        post_csv(client, modern_csv, unit=10, unit_currency="EUR", currency="SEK")
+    )
+    assert sek["file"]["unit_used"] == 110
+    assert sek["units"]["matched"]["pl"] == pytest.approx(eur["units"]["matched"]["pl"])
+
+
+def test_a_unit_without_its_currency_is_in_the_shown_one(client, modern_csv, sek_rate):
+    body = strict_json(post_csv(client, modern_csv, unit=100, currency="SEK"))
+    assert body["file"]["unit_used"] == 100
 
 
 def test_upload_in_its_own_currency_fetches_no_rate(client, modern_csv, sek_rate):
@@ -522,3 +543,17 @@ def test_explore_upload_converts_too(client, modern_csv: Path, sek_rate):
     assert sek["currency"] == "SEK"
     assert sek["view"]["turnover"] == pytest.approx(11.0 * eur["view"]["turnover"])
     assert sek["view"]["roi_pct"] == pytest.approx(eur["view"]["roi_pct"])
+
+
+def test_explore_upload_units_are_in_the_shown_currency(client, modern_csv, sek_rate):
+    eur = strict_json(explore_csv(client, modern_csv))
+    with modern_csv.open("rb") as fh:
+        units = strict_json(
+            client.post(
+                "/api/explore/upload",
+                files={"file": (modern_csv.name, fh, "text/csv")},
+                data={"currency": "SEK", "unit": "110"},
+            )
+        )
+    assert units["currency"] == "units"
+    assert units["view"]["turnover"] == pytest.approx(eur["view"]["turnover"] / 10)

@@ -68,18 +68,22 @@ export function postExploreUpload(
   return request(`/api/explore/upload?${queryString(query)}`, { method: 'POST', body })
 }
 
-/** How an uploaded file is to be shown: a unit size, and a currency to convert
- * to at today's rate. Either left out means the file's own. */
+/** How an uploaded file is to be shown: a currency to convert to at today's
+ * rate (left out: the file's own), and a unit size in that currency (left out:
+ * the typical stake). `unitCurrency` says which currency `unit` was set in
+ * when it differs from `currency`, so the unit keeps its worth. */
 export interface UploadChoice {
   unit?: number
   currency?: string
+  unitCurrency?: string
 }
 
-function uploadBody(file: File, { unit, currency }: UploadChoice): FormData {
+function uploadBody(file: File, { unit, currency, unitCurrency }: UploadChoice): FormData {
   const body = new FormData()
   body.append('file', file, file.name)
   if (unit !== undefined) body.append('unit', String(unit))
   if (currency !== undefined) body.append('currency', currency)
+  if (unitCurrency !== undefined) body.append('unit_currency', unitCurrency)
   return body
 }
 

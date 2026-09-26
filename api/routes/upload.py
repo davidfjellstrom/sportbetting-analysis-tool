@@ -11,6 +11,9 @@ stake buckets are cut on the stake column, and in the currency view that
 column is in currency. Switching between the two is therefore a client-side
 choice between two precomputed views. The unit and the currency each need a
 new request, because each changes every amount and every stake bucket.
+
+A unit is a stake in the currency on screen: "1 unit = 100 SEK" when the file
+is shown in SEK. The file is converted first and then divided by the unit.
 """
 
 from __future__ import annotations
@@ -76,16 +79,31 @@ def convert(
     return loader.in_currency(frame, rate.rate, target), target, rate
 
 
+def unit_in(unit: float, unit_currency: str | None, shown: str) -> float:
+    """A unit set in ``unit_currency``, expressed in the currency on screen.
+
+    Switching from EUR to SEK keeps "1 unit = 30 EUR" worth the same, rather
+    than turning it into 30 SEK. A file in units has no currency to convert to.
+    """
+    if unit_currency is None or unit_currency == shown or shown == "units":
+        return unit
+    try:
+        rate = fx.latest(unit_currency, shown)
+    except fx.FxUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return round(unit * rate.rate, 2)
+
+
 async def read_upload(
     file: fastapi.UploadFile, unit: float | None, currency: str | None
 ) -> tuple[pd.DataFrame, str]:
-    """An uploaded file as a frame: in units of ``unit`` when one is given,
-    otherwise in ``currency`` (converted) or the file's own. Returns the frame
-    and its label. A unit is always in the file's own currency."""
+    """An uploaded file as a frame, in ``currency`` (converted) or the file's
+    own, and then in units of ``unit`` when one is given. Returns the frame and
+    its label."""
     frame = _load(await file.read(), file.filename or "upload.csv")
-    if unit is not None:
-        return loader.to_units(frame, unit), "units"
     converted, label, _ = convert(frame, currency)
+    if unit is not None:
+        return loader.to_units(converted, unit), "units"
     return converted, label
 
 
@@ -94,16 +112,23 @@ async def upload(
     file: Annotated[fastapi.UploadFile, File()],
     unit: Annotated[float | None, Form(gt=0)] = None,
     currency: Annotated[schemas.DisplayCurrency | None, Form()] = None,
+    unit_currency: Annotated[schemas.DisplayCurrency | None, Form()] = None,
 ) -> schemas.UploadResponse:
+    """``unit`` is in ``unit_currency``, or in the currency shown when that is
+    left out; the response gives it back in the currency shown."""
     name = file.filename or "upload.csv"
     frame = _load(await file.read(), name)
 
-    typical = loader.typical_stake(frame)
-    typical_stake = round(typical, 2) if typical > 0 else None
-    unit_used = unit if unit is not None else (typical_stake or 1.0)
-
     file_currency = agg.currency_code(frame)
     shown, shown_currency, rate = convert(frame, currency)
+
+    typical = loader.typical_stake(shown)
+    typical_stake = round(typical, 2) if typical > 0 else None
+    unit_used = (
+        unit_in(unit, unit_currency, shown_currency)
+        if unit is not None
+        else (typical_stake or 1.0)
+    )
     dimensions = agg.available_dimensions(agg.with_dimensions(frame))
     currency_in_file = (
         None if "currency" not in frame.columns or file_currency == "units"
@@ -127,6 +152,6 @@ async def upload(
             schemas.LabelledKey(key=d.key, label=d.label) for d in dimensions
         ],
         missing_columns=list(loader.missing_columns(frame)),
-        units=_view(loader.to_units(frame, unit_used), "units"),
+        units=_view(loader.to_units(shown, unit_used), "units"),
         currency=_view(shown, shown_currency),
     )

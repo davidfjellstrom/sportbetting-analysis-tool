@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { UploadChoice } from '../api/client'
 import type { DimensionKey, UploadResponse } from '../api/types'
-import { currencyOptions, type UploadState } from './uploadState'
+import { currencyOptions, displayCurrency, type UploadState } from './uploadState'
 import { cumulativeSpec } from '../charts/cumulative'
 import { plBarsSpec } from '../charts/plBars'
 import { Alert } from '../components/Alert'
@@ -48,12 +48,11 @@ export function Upload({
     setUnitDraft(null)
     if (!Number.isFinite(value) || value < 0.01) return
     if (value.toFixed(2) === state.unitText) return
-    if (state.file) onCheck(state.file, { unit: value, currency: state.chosenCurrency })
+    if (state.file) onCheck(state.file, { unit: value, currency: displayCurrency(state.chosenCurrency) })
   }
 
   const result = state.status === 'done' || state.status === 'checking' ? state.result : undefined
   const cur = state.display === 'Units' ? 'units' : state.chosenCurrency
-  // A unit is a stake in the file's own currency, whatever it is shown in.
   const fileCur = result?.file.currency_in_file ?? 'EUR'
   const fx = result?.file.fx
   const view = result ? (state.display === 'Units' ? result.units : result.currency) : undefined
@@ -169,8 +168,13 @@ export function Upload({
               <Select
                 value={state.chosenCurrency}
                 onChange={(v) => {
+                  // The unit keeps its worth: 30 EUR becomes about 330 SEK.
                   if (state.file && v !== state.chosenCurrency) {
-                    onCheck(state.file, { unit: Number(state.unitText), currency: v })
+                    onCheck(state.file, {
+                      unit: Number(state.unitText),
+                      unitCurrency: displayCurrency(state.chosenCurrency),
+                      currency: v,
+                    })
                   }
                 }}
                 options={currencyOptions(result).map((c) => ({ value: c, label: c }))}
@@ -178,8 +182,10 @@ export function Upload({
             </label>
             <label className="control">
               <span className="label">
-                1 unit = ({fileCur}){' '}
-                <Help text="Your typical stake in this file, unless you set another." />
+                Your unit ({state.chosenCurrency}){' '}
+                <Help
+                  text={`What one unit is worth to you, for example 10 or 100 ${state.chosenCurrency}. It starts at your typical stake in this file. What you set here is remembered for your next file.`}
+                />
               </span>
               <input
                 type="number"
