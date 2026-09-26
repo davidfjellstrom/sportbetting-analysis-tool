@@ -73,18 +73,24 @@ export function Upload({
 
       <label className="uploader">
         <span className="label">Sportmarket Pro export (CSV)</span>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onCheck(file)
-            // Let the same file be chosen again after it was removed.
-            e.target.value = ''
-          }}
-        />
-        <span className="uploader-hint">
-          {state.file ? state.file.name : 'Drag and drop or browse · CSV'}
+        {/* The browser's own file input is invisible but covers the box, so a
+            click or a drop still reaches it. Its own "no file chosen" text is
+            wrong whenever the file was restored from this browser's storage. */}
+        <span className="uploader-box">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onCheck(file)
+              // Let the same file be chosen again after it was removed.
+              e.target.value = ''
+            }}
+          />
+          <span className="uploader-button">Choose file</span>
+          <span className="uploader-name">
+            {state.file ? state.file.name : 'or drag a CSV file here'}
+          </span>
         </span>
       </label>
       {state.file && (

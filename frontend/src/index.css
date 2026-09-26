@@ -497,39 +497,45 @@ input:disabled {
   margin: 1rem 0;
 }
 
-.uploader input[type='file'] {
-  display: block;
-  width: 100%;
+.uploader-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   padding: 1rem;
   background: var(--surface);
   border: 1px dashed var(--baseline);
   border-radius: 0.75rem;
   color: var(--ink-secondary);
-  font: inherit;
+}
+
+.uploader-box input[type='file'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   cursor: pointer;
 }
 
-.uploader input[type='file']::file-selector-button {
-  background: transparent;
+.uploader-button {
+  flex-shrink: 0;
   color: var(--ink);
   border: 1px solid var(--baseline);
   border-radius: 0.5rem;
   padding: 0.4rem 0.9rem;
-  margin-right: 1rem;
-  font: inherit;
-  cursor: pointer;
 }
 
-.uploader input[type='file']::file-selector-button:hover {
+.uploader-box:hover .uploader-button,
+.uploader-box:focus-within .uploader-button {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.uploader-hint {
-  display: block;
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-  margin-top: 0.35rem;
+.uploader-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .uploader-actions {
