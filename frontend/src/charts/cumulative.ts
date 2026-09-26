@@ -1,7 +1,7 @@
 import type { TopLevelSpec } from 'vega-lite'
 import type { PeriodPoint, PeriodSeries } from '../api/types'
 import { POSITIVE, SURFACE } from '../theme'
-import { ZERO_RULE } from './config'
+import { ZERO_RULE, amountFormat } from './config'
 
 /** Cumulative P/L over time — a lifetime by month, one export by day. */
 export interface CurveRules {
@@ -91,19 +91,19 @@ export function cumulativeSpec(series: PeriodSeries, code: string): TopLevelSpec
           field: 'cumulative_pl',
           type: 'quantitative' as const,
           title: `Cumulative (${code})`,
-          format: ',.0f',
+          format: amountFormat(code),
         },
         {
           field: 'pl',
           type: 'quantitative' as const,
           title: `That ${label.toLowerCase()} (${code})`,
-          format: '+,.0f',
+          format: amountFormat(code, true),
         },
         {
           field: 'turnover',
           type: 'quantitative' as const,
           title: `Turnover (${code})`,
-          format: ',.0f',
+          format: amountFormat(code),
         },
       ],
     },

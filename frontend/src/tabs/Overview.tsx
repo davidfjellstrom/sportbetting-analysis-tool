@@ -20,7 +20,7 @@ export function Overview({ data }: { data: OverviewResponse }) {
       </p>
       <MetricRow>
         <Metric label={`Matched turnover (${cur})`} value={money(data.matched.turnover, cur)} />
-        <Metric label={`P/L (${cur})`} value={money(data.matched.pl, cur, 0, true)} />
+        <Metric label={`P/L (${cur})`} value={money(data.matched.pl, cur, true)} />
         <Metric
           label="Fill rate"
           value={data.fill_rate === null ? 'nan%' : percent(data.fill_rate)}

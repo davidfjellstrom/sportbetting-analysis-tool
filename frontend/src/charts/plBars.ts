@@ -1,7 +1,7 @@
 import type { TopLevelSpec } from 'vega-lite'
 import type { PeriodSeries } from '../api/types'
 import { NEGATIVE, POSITIVE } from '../theme'
-import { ZERO_RULE } from './config'
+import { ZERO_RULE, amountFormat } from './config'
 import { bucketLabels } from './cumulative'
 
 /**
@@ -43,12 +43,12 @@ export function plBarsSpec(series: PeriodSeries, code: string): TopLevelSpec {
           },
           tooltip: [
             { field: 'label', type: 'nominal', title: label },
-            { field: 'pl', type: 'quantitative', title: `P/L (${code})`, format: '+,.0f' },
+            { field: 'pl', type: 'quantitative', title: `P/L (${code})`, format: amountFormat(code, true) },
             {
               field: 'turnover',
               type: 'quantitative',
               title: `Turnover (${code})`,
-              format: ',.0f',
+              format: amountFormat(code),
             },
           ],
         },

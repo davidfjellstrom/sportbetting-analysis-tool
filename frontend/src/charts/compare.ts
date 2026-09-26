@@ -1,7 +1,7 @@
 import type { TopLevelSpec } from 'vega-lite'
 import type { CurvePoint } from '../api/types'
 import { ACCENT, MAX_SERIES, SERIES_COLOURS, SURFACE } from '../theme'
-import { ZERO_RULE } from './config'
+import { ZERO_RULE, amountFormat } from './config'
 
 export type Measure = 'cum_pl' | 'cum_roi_pct'
 
@@ -34,7 +34,7 @@ export function compareSpec(
     (curves[slice] ?? []).map((p) => ({ slice, ...p })),
   )
   const title = measureLabel(measure, code)
-  const format = measure === 'cum_pl' ? '+,.0f' : '+.2f'
+  const format = measure === 'cum_pl' ? amountFormat(code, true) : '+.2f'
   const encoding = {
     x: { field: 'month', type: 'temporal' as const, title: null },
     y: { field: measure, type: 'quantitative' as const, title },
@@ -48,7 +48,7 @@ export function compareSpec(
         field: 'cum_turnover',
         type: 'quantitative' as const,
         title: `Turnover to date (${code})`,
-        format: ',.0f',
+        format: amountFormat(code),
       },
     ],
   }

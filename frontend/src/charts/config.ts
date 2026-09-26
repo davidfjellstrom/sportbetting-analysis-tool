@@ -34,6 +34,11 @@ export const CHART_CONFIG: Config = {
   },
 }
 
+/** A tooltip format for an amount: two decimals in units, whole in currency. */
+export function amountFormat(code: string, withSign = false): string {
+  return (withSign ? '+' : '') + (code === 'units' ? ',.2f' : ',.0f')
+}
+
 /** A horizontal rule at zero, drawn in the baseline colour. */
 export const ZERO_RULE = {
   data: { values: [{ y: 0 }] },

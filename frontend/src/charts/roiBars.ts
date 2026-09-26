@@ -1,7 +1,7 @@
 import type { TopLevelSpec } from 'vega-lite'
 import type { SliceRow } from '../api/types'
 import { NEGATIVE, POSITIVE } from '../theme'
-import { ZERO_RULE } from './config'
+import { ZERO_RULE, amountFormat } from './config'
 
 /** ROI per slice for the largest slices, in the order the API ranked them. */
 export function roiBarsSpec(
@@ -45,9 +45,9 @@ export function roiBarsSpec(
               field: 'turnover',
               type: 'quantitative',
               title: `Turnover (${code})`,
-              format: ',.0f',
+              format: amountFormat(code),
             },
-            { field: 'pl', type: 'quantitative', title: `P/L (${code})`, format: '+,.0f' },
+            { field: 'pl', type: 'quantitative', title: `P/L (${code})`, format: amountFormat(code, true) },
             { field: 'fixtures', type: 'quantitative', title: 'Matches', format: ',' },
             { field: 'bets', type: 'quantitative', title: 'Bets', format: ',' },
           ],

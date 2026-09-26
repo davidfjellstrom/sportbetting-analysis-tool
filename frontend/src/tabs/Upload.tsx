@@ -204,7 +204,7 @@ export function Upload({
 
           <MetricRow>
             <Metric label={`Matched turnover (${cur})`} value={money(view.matched.turnover, cur)} />
-            <Metric label={`P/L (${cur})`} value={money(view.matched.pl, cur, 0, true)} />
+            <Metric label={`P/L (${cur})`} value={money(view.matched.pl, cur, true)} />
             <Metric
               label="Bets"
               value={result.report.n_bets === null ? UNKNOWN : integer(result.report.n_bets)}

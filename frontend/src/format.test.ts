@@ -7,17 +7,20 @@ describe('money', () => {
     expect(money(1234.4, 'GBP')).toBe('£1,234')
     expect(money(1234.4, 'USD')).toBe('$1,234')
     expect(money(218, 'SEK')).toBe('218 kr')
-    expect(money(102480.2, 'units')).toBe('102,480 u')
+    expect(money(102480.2, 'units')).toBe('102,480.20 u')
     expect(money(5, 'CHF')).toBe('5 CHF')
   })
   it('carries an explicit sign on P/L', () => {
-    expect(money(1204, 'EUR', 0, true)).toBe('+€1,204')
-    expect(money(-1204, 'EUR', 0, true)).toBe('-€1,204')
-    expect(money(0, 'units', 0, true)).toBe('+0 u')
-    expect(money(-3.5, 'SEK', 2, true)).toBe('-3.50 kr')
+    expect(money(1204, 'EUR', true)).toBe('+€1,204')
+    expect(money(-1204, 'EUR', true)).toBe('-€1,204')
+    expect(money(0, 'units', true)).toBe('+0.00 u')
+    expect(money(-3.5, 'SEK', true)).toBe('-4 kr')
+  })
+  it('keeps two decimals on units, so a large unit is not rounded away', () => {
+    expect(money(-98 / 10, 'units', true)).toBe('-9.80 u')
   })
   it('does not sign a plain amount', () => {
-    expect(money(-12, 'units')).toBe('-12 u')
+    expect(money(-12, 'units')).toBe('-12.00 u')
   })
 })
 

@@ -44,18 +44,16 @@ export function percent(value: number, decimals = 1): string {
 /**
  * Format an amount so the currency is never in doubt.
  *
+ * Units get two decimals: a unit can be a large stake, so -9.80 u must not
+ * read as -10 u. Currency amounts are whole: cents add nothing to a total.
+ *
  * `signed` on P/L: a bare "1,204" reads as a number, "+€1,204" reads as a
  * result. Filters can push any slice negative, so the sign carries meaning.
  */
-export function money(
-  value: number,
-  code: string,
-  decimals = 0,
-  withSign = false,
-): string {
+export function money(value: number, code: string, withSign = false): string {
   const sign = withSign ? (value < 0 ? '-' : '+') : ''
   const magnitude = withSign ? Math.abs(value) : value
-  const number = fixed(magnitude, decimals)
+  const number = fixed(magnitude, code === 'units' ? 2 : 0)
   const symbol = CURRENCY_SYMBOLS[code]
   if (symbol && SUFFIX_CURRENCIES.has(code)) return `${sign}${number} ${symbol}`
   if (symbol) return `${sign}${symbol}${number}`
