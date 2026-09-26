@@ -8,8 +8,7 @@ import {
   SURFACE,
 } from '../theme'
 
-// The port of `style_chart` in app/streamlit_app.py: recessive grid and axes,
-// ink in text tokens rather than series colour.
+// Recessive grid and axes, ink in text tokens rather than series colour.
 export const CHART_CONFIG: Config = {
   background: 'transparent',
   font: FONT,

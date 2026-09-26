@@ -34,7 +34,7 @@ export default function App() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
   const [tab, setTab] = useState('overview')
   // Held here rather than in the tab, so a checked file survives a visit to
-  // another tab — as it does in the Streamlit app, where every tab is live.
+  // another tab.
   const [upload, setUpload] = useState<UploadState>(INITIAL_UPLOAD_STATE)
   const [explore, setExplore] = useState<ExploreState | null>(null)
   const updateExplore = useCallback(

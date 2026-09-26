@@ -43,7 +43,7 @@ previous run.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-python -m pip install -e ".[dev,app,api,stats]"
+python -m pip install -e ".[dev,api,stats]"
 
 pytest -m "not owner"                 # tests for the modules that exist today
 ruff check .
@@ -58,14 +58,7 @@ uvicorn api.index:app --reload        # http://localhost:8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
-The Streamlit app is still there and shows the same figures from the same
-code:
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-Both read `data/processed/` and nothing else. There is no toggle that shows the
+The API reads `data/processed/` and nothing else. There is no toggle that shows the
 raw amounts, and the raw files do not need to be on the machine the app runs on
 — see [Units](#units). To refresh the processed files from a new export:
 
@@ -136,11 +129,11 @@ disappearing from every total that touches the column.
 Verdicts on the candidate patterns — holds up, too little data, or noise — will
 get a tab of their own once the tests behind them exist. See [Status](#status).
 
-Chart colours come from a validated palette: the diverging pair is blue↔red
-rather than the conventional profit/loss red↔green, which is the pairing that
-collapses under the commonest colour blindness. Eight categorical slots, checked
-for contrast and colour-blind separation against this surface, are the hard
-ceiling — hence the cap on the segment comparison.
+Profit and loss are blue↔red rather than the conventional red↔green, which is
+the pairing that collapses under the commonest colour blindness. The segment
+comparison is capped at eight series, one per categorical colour. The current
+hex values have not been re-checked for contrast since the move to the navy
+theme; see `frontend/src/theme.ts`.
 
 ### Layout
 
@@ -162,8 +155,6 @@ api/                  FastAPI: routing, validation, serialisation. Nothing else.
 frontend/             Vite + React + TypeScript. Displays; never computes.
   src/charts/         Vega-Lite specs, with the chart rules as tested functions.
   src/tabs/           Overview, Upload, Explore.
-app/streamlit_app.py  The same three tabs in Streamlit, on the same src/ code.
-.streamlit/           Theme; the same colours as frontend/src/theme.ts.
 tests/                Synthetic fixtures only; no real data.
 reports/              Generated output. Gitignored.
 vercel.json           Region and what to leave out of the function bundle.
@@ -279,7 +270,7 @@ The hypotheses the machinery is built to test. None has a verdict until
 | --- | --- |
 | `loader.py`, `checks.py`, `aggregations.py` | Written and tested. |
 | `api/` | Written and tested on synthetic data. |
-| Overview, Upload, Explore | Working on real exports, in both the React app and the Streamlit app. |
+| Overview, Upload, Explore | Working on real exports. |
 | `odds.py`, `features.py`, `stats.py` | Signatures and contracts only; every function raises. |
 | `validate.py` | Interface proposal, open questions in the module docstring. |
 | Verdicts | No tab yet; the hypotheses are listed under Candidate patterns. |

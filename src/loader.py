@@ -254,7 +254,7 @@ def load_file(path: str | Path) -> pd.DataFrame:
 
 
 def load_upload(buffer, name: str) -> pd.DataFrame:
-    """Read an export from an open buffer — a Streamlit upload, say.
+    """Read an export from an open buffer — an uploaded file, say.
 
     Same pipeline as :func:`load_file`; the filename is passed separately
     because a buffer has no path to take it from, and ``source_file`` is what

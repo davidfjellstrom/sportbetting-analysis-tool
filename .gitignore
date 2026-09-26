@@ -39,7 +39,7 @@ htmlcov/
 .idea/
 .vscode/
 
-# Agent tooling: symlinks into .venv created by the streamlit package
+# Agent tooling
 .claude/
 .agents/
 .vercel

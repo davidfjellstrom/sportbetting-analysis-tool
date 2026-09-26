@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fixed, formatMonth, integer, money, percent, signed, tableMoney } from './format'
 
 describe('money', () => {
-  it('matches the Python app for every currency form', () => {
+  it('formats every currency form', () => {
     expect(money(1234.4, 'EUR')).toBe('€1,234')
     expect(money(1234.4, 'GBP')).toBe('£1,234')
     expect(money(1234.4, 'USD')).toBe('$1,234')

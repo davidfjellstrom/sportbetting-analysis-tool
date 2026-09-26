@@ -1,7 +1,7 @@
 import { Help } from './Help'
 import { Select } from './Select'
 
-/** Streamlit's multiselect: chips for what is picked, a list for the rest. */
+/** A multiselect: chips for what is picked, a list for the rest. */
 export function MultiSelect({
   label,
   options,

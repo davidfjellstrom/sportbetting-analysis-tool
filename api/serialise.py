@@ -64,9 +64,9 @@ def totals(matched: pd.DataFrame) -> schemas.Totals:
 
 
 def period_series(matched: pd.DataFrame) -> schemas.PeriodSeries:
-    table, _, label = agg.by_period(matched)
+    table, bucket = agg.by_period(matched)
     return schemas.PeriodSeries(
-        bucket="day" if label == "Day" else "month",
+        bucket=bucket,
         points=[
             schemas.PeriodPoint(
                 period=row.period.strftime("%Y-%m-%d"),
