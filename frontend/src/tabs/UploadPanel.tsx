@@ -1,17 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { UploadChoice } from '../api/client'
-import type { DimensionKey, UploadResponse } from '../api/types'
 import { currencyOptions, displayCurrency, type UploadState } from './uploadState'
-import { cumulativeSpec } from '../charts/cumulative'
-import { plBarsSpec } from '../charts/plBars'
 import { Alert } from '../components/Alert'
 import { CheckFailureBanner, CheckTable } from '../components/CheckReport'
 import { Help } from '../components/Help'
-import { LazyChart } from '../components/LazyChart'
-import { Metric, MetricRow } from '../components/Metric'
 import { Select } from '../components/Select'
-import { SliceTable } from '../components/SliceTable'
-import { UNKNOWN, integer, money, percent } from '../format'
 
 // "A", "A or B", "A, B or C": the missing columns, read as a sentence.
 function listed(items: string[]): string {
@@ -20,14 +13,12 @@ function listed(items: string[]): string {
     : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`
 }
 
-// The file's own dimensions: a column the export left out has no dimension,
-// so a choice carried over from an earlier file may not exist here.
-function groupByFor(result: UploadResponse, wanted: DimensionKey): DimensionKey {
-  const keys = result.dimensions.map((d) => d.key as DimensionKey)
-  return keys.includes(wanted) ? wanted : keys[0]
-}
-
-export function Upload({
+/**
+ * The top of the Explore tab: choose a file of your own, see whether it
+ * passed the checks, and pick how its amounts are shown. The figures for it
+ * are the explorer's, below.
+ */
+export function UploadPanel({
   state,
   setState,
   onCheck,
@@ -52,28 +43,13 @@ export function Upload({
   }
 
   const result = state.status === 'done' || state.status === 'checking' ? state.result : undefined
-  const cur = state.display === 'Units' ? 'units' : state.chosenCurrency
   const fileCur = result?.file.currency_in_file ?? 'EUR'
   const fx = result?.file.fx
-  const view = result ? (state.display === 'Units' ? result.units : result.currency) : undefined
-  const cumulative = useMemo(
-    () => (view ? cumulativeSpec(view.cumulative, cur) : null),
-    [view, cur],
-  )
-  const bars = useMemo(() => (view ? plBarsSpec(view.cumulative, cur) : null), [view, cur])
-  const groupBy = result ? groupByFor(result, state.groupBy) : state.groupBy
-  const dimension = result?.dimensions.find((d) => d.key === groupBy) ?? {
-    key: groupBy,
-    label: groupBy,
-  }
 
   return (
     <>
-      <h3 className="accent">Check a new export</h3>
-      <p className="caption">Upload your own Sportmarket Pro CSV-export to get it analyzed.</p>
-
       <label className="uploader">
-        <span className="label">Sportmarket Pro export (CSV)</span>
+        <span className="label">Your own Sportmarket Pro export (CSV)</span>
         {/* The browser's own file input is invisible but covers the box, so a
             click or a drop still reaches it. Its own "no file chosen" text is
             wrong whenever the file was restored from this browser's storage. */}
@@ -94,23 +70,18 @@ export function Upload({
           </span>
         </span>
       </label>
-      {state.file && (
+      {state.file ? (
         <div className="uploader-actions">
-          <span className="caption">
-            Kept in this browser for 24 hours, so a reload does not lose it. Explore
-            shows this file until you remove it.
-          </span>
           <button type="button" className="button-secondary" onClick={onRemove}>
             Remove file
           </button>
         </div>
+      ) : (
+        <p className="caption">
+          Below is the full history. Upload your own export to explore that instead.
+        </p>
       )}
 
-      {state.status === 'idle' && (
-        <Alert kind="info" icon="📄">
-          No file loaded.
-        </Alert>
-      )}
       {state.status === 'error' && (
         <Alert kind="error" icon="🚨">
           {state.error}
@@ -121,9 +92,8 @@ export function Upload({
           {state.error}
         </Alert>
       )}
-      {state.status === 'checking' && !result && <div className="loading">Checking…</div>}
 
-      {result && view && cumulative && bars && (
+      {result && (
         <>
           {/* Silent when the checks pass, as for the history: a user has no use
               for a list of green ticks. A failure still stops them, because no
@@ -136,7 +106,7 @@ export function Upload({
           )}
 
           {result.missing_columns.length > 0 && (
-            <Alert kind="info" icon="🧩">
+            <Alert kind="info">
               For your information, this file has no {listed(result.missing_columns)}{' '}
               {result.missing_columns.length > 1 ? 'columns' : 'column'} — add{' '}
               {result.missing_columns.length > 1 ? 'them' : 'it'} to your export to get
@@ -204,53 +174,11 @@ export function Upload({
             </label>
           </div>
 
-          <MetricRow>
-            <Metric label={`Matched turnover (${cur})`} value={money(view.matched.turnover, cur)} />
-            <Metric label={`P/L (${cur})`} value={money(view.matched.pl, cur, true)} />
-            <Metric
-              label="Bets"
-              value={result.report.n_bets === null ? UNKNOWN : integer(result.report.n_bets)}
-            />
-            <Metric label="Matches" value={integer(result.report.n_fixtures)} />
-          </MetricRow>
           {state.display === 'Currency' && fx && (
             <p className="caption">
               Converted from {fx.base} at 1 {fx.base} = {fx.rate} {fx.target}.
             </p>
           )}
-          <p className="caption">
-            {integer(result.report.n_rows)} rows, {result.report.date_min} to{' '}
-            {result.report.date_max}. {integer(result.report.n_unmatched_rows)} row(s) (
-            {percent(result.report.unmatched_row_share)}) never got matched and are left
-            out of the figures above.
-          </p>
-
-          <h3 className="accent">How this file ran ({cur})</h3>
-          <LazyChart spec={cumulative} height={320} />
-          <LazyChart spec={bars} height={260} />
-          <p className="caption">
-            Shown per day for short files, per month for longer ones. A few good or bad
-            days in a row is normal — a coin flip does the same.
-          </p>
-
-          <h3 className="accent">Breakdown</h3>
-          <label className="control">
-            <span className="label">Group by</span>
-            <Select
-              value={groupBy}
-              onChange={(v) => setState((s) => ({ ...s, groupBy: v as DimensionKey }))}
-              options={result.dimensions.map((d) => ({ value: d.key, label: d.label }))}
-            />
-          </label>
-          <SliceTable
-            rows={view.breakdown[groupBy] ?? []}
-            dimension={dimension}
-            currency={cur}
-          />
-          <p className="caption">
-            One file covers a short period, so each group is small. Check the number of
-            matches before reading anything into the ROI.
-          </p>
         </>
       )}
     </>

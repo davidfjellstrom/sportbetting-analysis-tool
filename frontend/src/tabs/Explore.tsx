@@ -8,6 +8,8 @@ import type {
   SortKey,
 } from '../api/types'
 import { compareSpec, measureLabel, type Measure } from '../charts/compare'
+import { cumulativeSpec } from '../charts/cumulative'
+import { plBarsSpec } from '../charts/plBars'
 import { roiBarsSpec } from '../charts/roiBars'
 import { Alert } from '../components/Alert'
 import { Help } from '../components/Help'
@@ -38,15 +40,12 @@ export function Explore({
   setState,
   options,
   fetchExplore,
-  fileName,
 }: {
   state: ExploreState
   setState: (update: (s: ExploreState) => ExploreState) => void
   options: ExploreOptions
   /** Where the answers come from: the history, or an uploaded file. */
   fetchExplore: (query: ExploreQuery) => Promise<ExploreResponse>
-  /** Set when an uploaded file is being explored instead of the history. */
-  fileName?: string
 }) {
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -112,6 +111,19 @@ export function Explore({
     [ok, state.picked, state.measure, dimensionLabel, cur],
   )
 
+  // An uploaded file's running P/L, following the filters. The history's is
+  // on the Overview tab, so the API leaves it out here.
+  const overTime = useMemo(
+    () =>
+      ok?.cumulative
+        ? {
+            curve: cumulativeSpec(ok.cumulative, cur),
+            bars: plBarsSpec(ok.cumulative, cur),
+          }
+        : null,
+    [ok, cur],
+  )
+
   const stale = result !== null && result.key !== queryKey
   const { max_series } = options.compare
   const bars = curveBars(options.compare, cur)
@@ -119,14 +131,6 @@ export function Explore({
 
   return (
     <>
-      <h3 className="accent">Segment explorer</h3>
-      {fileName && (
-        <Alert kind="info" icon="📄">
-          Showing your uploaded file, <strong>{fileName}</strong>. Remove it on the Upload
-          tab to explore the full history again.
-        </Alert>
-      )}
-
       <details className="expander" open>
         <summary>Filters</summary>
         <div className="controls filters-row-1">
@@ -212,6 +216,28 @@ export function Explore({
 
       {ok && barsSpec && (
         <div className={stale ? 'stale' : undefined}>
+          <MetricRow>
+            <Metric label={`Turnover in view (${cur})`} value={money(ok.view.turnover, cur)} />
+            <Metric label={`P/L in view (${cur})`} value={money(ok.view.pl, cur, true)} />
+            <Metric label="ROI in view" value={`${signed(ok.view.roi_pct, 2)}%`} />
+            <Metric
+              label="Bets in view"
+              value={ok.view.bets === null ? UNKNOWN : integer(ok.view.bets)}
+            />
+            <Metric label="Matches in view" value={integer(ok.view.fixtures)} />
+          </MetricRow>
+
+          {overTime && (
+            <>
+              <h3 className="accent">How this file ran ({cur})</h3>
+              <LazyChart spec={overTime.curve} height={320} />
+              <LazyChart spec={overTime.bars} height={260} />
+              <p className="caption">
+                A few good or bad days in a row is normal — a coin flip does the same.
+              </p>
+            </>
+          )}
+
           <div className="controls group-row">
             <label className="control">
               <span className="label">Group by</span>
@@ -238,18 +264,16 @@ export function Explore({
             />
           </div>
 
-          <MetricRow>
-            <Metric label={`Turnover in view (${cur})`} value={money(ok.view.turnover, cur)} />
-            <Metric label={`P/L in view (${cur})`} value={money(ok.view.pl, cur, true)} />
-            <Metric label="ROI in view" value={`${signed(ok.view.roi_pct, 2)}%`} />
-            <Metric
-              label="Bets in view"
-              value={ok.view.bets === null ? UNKNOWN : integer(ok.view.bets)}
-            />
-            <Metric label="Groups shown" value={`${ok.groups_shown} of ${ok.groups_total}`} />
-          </MetricRow>
-
+          <p className="caption">
+            {ok.groups_shown} of {ok.groups_total} groups shown
+          </p>
           <SliceTable rows={ok.table} dimension={dimension} currency={cur} />
+          {overTime && (
+            <p className="caption">
+              One file covers a short period, so each group is small. Check the number of
+              matches before reading anything into the ROI.
+            </p>
+          )}
 
           <label className="control slider">
             <span className="label">Groups to chart (largest first)</span>

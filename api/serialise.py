@@ -115,20 +115,5 @@ def curves(monthly: pd.DataFrame) -> dict[str, list[schemas.CurvePoint]]:
     return out
 
 
-def breakdown(
-    matched_with_dims: pd.DataFrame,
-) -> dict[str, list[schemas.SliceRow]]:
-    """Every available dimension at once, largest turnover first, as the
-    Upload tab shows. Dimensions whose column the file left out are absent."""
-    return {
-        d.key: slice_rows(
-            agg.aggregate(matched_with_dims, d.column).sort_values(
-                "turnover", ascending=False
-            )
-        )
-        for d in agg.available_dimensions(matched_with_dims)
-    }
-
-
 def fill_rate(frame: pd.DataFrame) -> float | None:
     return _finite(loader.fill_rate(frame))

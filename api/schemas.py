@@ -142,11 +142,8 @@ class ExploreOptions(BaseModel):
 # ---- GET /api/explore --------------------------------------------------------
 
 
-class ViewTotals(BaseModel):
-    turnover: float
-    pl: float
+class ViewTotals(Totals):
     roi_pct: float
-    bets: int | None
 
 
 class CurvePoint(BaseModel):
@@ -168,6 +165,9 @@ class ExploreOk(BaseModel):
     curves: dict[str, list[CurvePoint]]
     #: What one point of a curve covers. ``CurvePoint.month`` holds its start.
     curve_bucket: Literal["day", "month"]
+    #: Running P/L of the rows in view, for an uploaded file only: the
+    #: history's own curve is on the Overview tab.
+    cumulative: PeriodSeries | None
 
 
 class ExploreStopped(BaseModel):
@@ -208,10 +208,6 @@ class UploadFile(BaseModel):
 
 class UploadView(BaseModel):
     currency: str
-    matched: Totals
-    cumulative: PeriodSeries
-    #: Keyed by the dimensions in ``UploadResponse.dimensions`` only.
-    breakdown: dict[DimensionKey, list[SliceRow]]
     #: The explorer's options for this file, in this view's amounts. ``None``
     #: when no row matched: there is nothing to explore.
     explore_options: ExploreOptions | None
@@ -220,9 +216,6 @@ class UploadView(BaseModel):
 class UploadResponse(BaseModel):
     file: UploadFile
     checks: CheckReport
-    report: LoadReport
-    #: What this file can be grouped by; a subset when it left columns out.
-    dimensions: list[LabelledKey]
     #: Export headers the file did not carry, e.g. ``["Bookie"]``.
     missing_columns: list[str]
     units: UploadView

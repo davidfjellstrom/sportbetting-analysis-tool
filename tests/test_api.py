@@ -243,10 +243,9 @@ def post_csv(client, path: Path, **form):
         )
 
 
-def test_upload_returns_both_views(client, modern_csv: Path):
+def test_upload_describes_the_file(client, modern_csv: Path):
     body = strict_json(post_csv(client, modern_csv))
     frame = loader.load_file(modern_csv)
-    matched = loader.matched(frame)
     typical = round(loader.typical_stake(frame), 2)
 
     assert body["file"] == {
@@ -257,34 +256,16 @@ def test_upload_returns_both_views(client, modern_csv: Path):
         "fx": None,
     }
     assert body["checks"]["ok"] is True
-    assert body["report"]["n_rows"] == len(frame)
-    assert body["report"]["n_unmatched_rows"] == 1
-
     assert body["currency"]["currency"] == "EUR"
-    assert body["currency"]["matched"]["turnover"] == pytest.approx(
-        matched["turnover"].sum()
-    )
     assert body["units"]["currency"] == "units"
-    assert body["units"]["matched"]["turnover"] == pytest.approx(
-        matched["turnover"].sum() / typical
-    )
-    assert body["units"]["matched"]["bets"] == body["currency"]["matched"]["bets"]
-
-    assert body["units"]["cumulative"]["bucket"] == "day"
-    assert set(body["units"]["breakdown"]) == {d.key for d in agg.DIMENSIONS}
-    for rows in body["units"]["breakdown"].values():
-        turnovers = [r["turnover"] for r in rows]
-        assert turnovers == sorted(turnovers, reverse=True)
+    assert [d["key"] for d in body["units"]["explore_options"]["dimensions"]] == [d.key for d in agg.DIMENSIONS]
 
 
-def test_upload_position_sizes_are_the_same_in_both_views(client, modern_csv: Path):
-    """Position sizes are in units, whatever the amounts are shown in."""
-    body = strict_json(post_csv(client, modern_csv, unit=10))
-    in_currency = body["currency"]["breakdown"]["position_size"]
-    in_units = body["units"]["breakdown"]["position_size"]
-    assert [r["slice"] for r in in_currency] == [r["slice"] for r in in_units]
-    assert all(r["slice"].endswith(" u") for r in in_units)
-    help_text = {d["key"]: d["help"] for d in body["dimensions"]}
+def test_dimensions_carry_their_help_text(client, modern_csv: Path):
+    body = strict_json(post_csv(client, modern_csv))
+    help_text = {
+        d["key"]: d["help"] for d in body["units"]["explore_options"]["dimensions"]
+    }
     assert "one bookie" in help_text["position_size"]
     assert help_text["market_type"] is None
 
@@ -309,10 +290,7 @@ def test_explore_upload_in_currency_keeps_unit_position_sizes(client, modern_csv
 
 
 def test_upload_with_a_chosen_unit(client, modern_csv: Path):
-    body = strict_json(post_csv(client, modern_csv, unit=10))
-    frame = loader.matched(loader.load_file(modern_csv))
-    assert body["file"]["unit_used"] == 10
-    assert body["units"]["matched"]["pl"] == pytest.approx(frame["pl"].sum() / 10)
+    assert strict_json(post_csv(client, modern_csv, unit=10))["file"]["unit_used"] == 10
 
 
 def test_upload_rejects_a_non_positive_unit(client, modern_csv: Path):
@@ -330,7 +308,7 @@ def test_upload_missing_required_column_is_a_clear_400(client, export_without):
 def test_upload_full_export_misses_nothing(client, modern_csv: Path):
     body = strict_json(post_csv(client, modern_csv))
     assert body["missing_columns"] == []
-    assert [d["key"] for d in body["dimensions"]] == [d.key for d in agg.DIMENSIONS]
+    assert [d["key"] for d in body["units"]["explore_options"]["dimensions"]] == [d.key for d in agg.DIMENSIONS]
 
 
 def test_upload_without_grouping_columns_hides_those_dimensions(
@@ -338,31 +316,33 @@ def test_upload_without_grouping_columns_hides_those_dimensions(
 ):
     body = strict_json(post_csv(client, export_without("Bookie", "Country")))
     assert body["missing_columns"] == ["Country", "Bookie"]
-    keys = [d["key"] for d in body["dimensions"]]
+    keys = [d["key"] for d in body["units"]["explore_options"]["dimensions"]]
     assert "bookie" not in keys and "country" not in keys
     assert "competition" in keys
-    for view in (body["units"], body["currency"]):
-        assert set(view["breakdown"]) == set(keys)
+    assert [d["key"] for d in body["currency"]["explore_options"]["dimensions"]] == keys
 
 
 def test_upload_without_nr_of_bets_reports_bets_as_unknown(client, export_without):
-    body = strict_json(post_csv(client, export_without("Nr of Bets")))
-    assert body["report"]["n_bets"] is None
-    assert body["units"]["matched"]["bets"] is None
-    assert "n_bets_bucket" not in body["units"]["breakdown"]
-    for row in body["units"]["breakdown"]["market_type"]:
+    path = export_without("Nr of Bets")
+    body = strict_json(post_csv(client, path))
+    assert "n_bets_bucket" not in [d["key"] for d in body["units"]["explore_options"]["dimensions"]]
+    explored = strict_json(explore_csv(client, path))
+    assert explored["view"]["bets"] is None
+    for row in explored["table"]:
         assert row["bets"] is None and row["bets_per_fixture"] is None
         assert row["fixtures"] >= 1
 
 
 def test_upload_with_only_the_required_columns(client, export_without):
     optional = [h for h in RAW_HEADER if h not in UPLOAD_REQUIRED_HEADERS]
-    body = strict_json(post_csv(client, export_without(*optional)))
+    path = export_without(*optional)
+    body = strict_json(post_csv(client, path))
     assert sorted(body["missing_columns"]) == sorted(optional)
-    assert [d["key"] for d in body["dimensions"]] == [
+    assert [d["key"] for d in body["units"]["explore_options"]["dimensions"]] == [
         "position_size", "year", "month", "weekday"
     ]
-    assert body["units"]["matched"]["fixtures"] == 3
+    group_by = {"group_by": "year"}
+    assert strict_json(explore_csv(client, path, **group_by))["view"]["fixtures"] == 3
     assert body["checks"]["ok"]
     skipped = [c["name"] for c in body["checks"]["checks"] if c["detail"].startswith("skipped:")]
     assert set(skipped) == {
@@ -399,9 +379,8 @@ def test_upload_with_no_matched_rows(client, tmp_path: Path):
     body = strict_json(post_csv(client, path))
     assert body["file"]["typical_stake"] is None
     assert body["file"]["unit_used"] == 1.0
-    assert body["units"]["matched"]["turnover"] == 0
-    assert body["units"]["cumulative"]["points"] == []
-    assert body["report"]["n_unmatched_rows"] == len(rows)
+    assert body["units"]["explore_options"] is None
+    assert body["currency"]["explore_options"] is None
 
 
 # --------------------------------------------------------------------------
@@ -429,10 +408,25 @@ def test_explore_upload_covers_only_the_file(client, modern_csv: Path):
         matched["bookie"].astype(str)
     )
     assert body["curve_bucket"] == "day"
+    assert body["view"]["fixtures"] == matched["fixture_id"].nunique()
+
+
+def test_explore_upload_running_pl_follows_the_filters(client, modern_csv: Path):
+    everything = strict_json(explore_csv(client, modern_csv))["cumulative"]
+    ou_only = strict_json(explore_csv(client, modern_csv, market_type=["ou"]))
+    matched = loader.matched(loader.load_file(modern_csv))
+    ou = matched[matched["market_type"] == "ou"]
+    assert everything["bucket"] == "day"
+    points = ou_only["cumulative"]["points"]
+    assert points[-1]["cumulative_pl"] == pytest.approx(ou["pl"].sum())
+    assert points != everything["points"]
 
 
 def test_explore_history_curves_stay_monthly(client):
-    assert strict_json(client.get("/api/explore"))["curve_bucket"] == "month"
+    body = strict_json(client.get("/api/explore"))
+    assert body["curve_bucket"] == "month"
+    # The history's running P/L is on the Overview tab, not repeated here.
+    assert body["cumulative"] is None
 
 
 def test_explore_upload_in_units(client, modern_csv: Path):
@@ -503,30 +497,22 @@ def test_upload_converts_the_currency_view(client, modern_csv: Path, sek_rate):
     sek = strict_json(post_csv(client, modern_csv, currency="SEK"))
     assert sek_rate == [("EUR", "SEK")]
     assert sek["currency"]["currency"] == "SEK"
-    assert sek["currency"]["matched"]["pl"] == pytest.approx(
-        11.0 * eur["currency"]["matched"]["pl"]
-    )
+    assert sek["currency"]["explore_options"]["currency"] == "SEK"
     assert sek["file"]["fx"] == {
         "base": "EUR", "target": "SEK", "rate": 11.0, "date": "2026-09-25"
     }
-    # The unit follows the currency: the typical stake is now in SEK, so the
-    # amounts in units barely move (only the rounding of the stake differs).
+    # The unit follows the currency: the typical stake is now in SEK.
     assert sek["file"]["typical_stake"] == pytest.approx(
         11.0 * eur["file"]["typical_stake"], abs=0.01
-    )
-    assert sek["units"]["matched"]["pl"] == pytest.approx(
-        eur["units"]["matched"]["pl"], rel=1e-3
     )
 
 
 def test_a_unit_keeps_its_worth_in_another_currency(client, modern_csv, sek_rate):
     """1 unit = 10 EUR, shown in SEK, is 1 unit = 110 SEK — not 10 SEK."""
-    eur = strict_json(post_csv(client, modern_csv, unit=10))
     sek = strict_json(
         post_csv(client, modern_csv, unit=10, unit_currency="EUR", currency="SEK")
     )
     assert sek["file"]["unit_used"] == 110
-    assert sek["units"]["matched"]["pl"] == pytest.approx(eur["units"]["matched"]["pl"])
 
 
 def test_a_unit_without_its_currency_is_in_the_shown_one(client, modern_csv, sek_rate):
