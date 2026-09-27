@@ -10,6 +10,8 @@ export interface ExploreState {
   marketTypes: string[]
   bookies: string[]
   groupBy: DimensionKey
+  /** Split each group by selection too, where the grouping allows it. */
+  splitBySelection: boolean
   sort: SortKey
   minFixtures: number
   topN: number
@@ -32,6 +34,7 @@ export function initialExploreState(options: ExploreOptions): ExploreState {
     groupBy: options.dimensions.some((d) => d.key === 'market_type')
       ? 'market_type'
       : (options.dimensions[0].key as DimensionKey),
+    splitBySelection: false,
     sort: 'turnover_desc',
     minFixtures: 0,
     topN: 12,
@@ -53,5 +56,6 @@ export function exploreQuery(state: ExploreState): ExploreQuery {
     group_by: state.groupBy,
     sort: state.sort,
     min_fixtures: state.minFixtures,
+    split_by_selection: state.splitBySelection || undefined,
   }
 }

@@ -39,6 +39,9 @@ class ExploreParams:
     max_stake: Annotated[float | None, Query(ge=0)] = None
     market_type: Annotated[list[str] | None, Query()] = None
     bookie: Annotated[list[str] | None, Query()] = None
+    #: Split every group by selection too ("pinnacle · home"). Ignored where
+    #: the grouping is not in ``ExploreOptions.splittable_by_selection``.
+    split_by_selection: bool = False
 
 
 @dataclass(frozen=True)
@@ -78,6 +81,10 @@ class ExploreSource:
             if "bookie" in frame.columns
             else [],
             dimensions=[serialise.dimension(d) for d in dims],
+            # Empty when the data has no side to split by.
+            splittable_by_selection=[d.key for d in dims if d.splittable]
+            if "selection" in frame.columns
+            else [],
             sorts=[schemas.LabelledKey(key=s.key, label=s.label) for s in agg.SORTS],
             compare=schemas.CompareRules(
                 min_turnover=curve_rule.min_turnover,
@@ -124,14 +131,19 @@ def run(source: ExploreSource, params: ExploreParams) -> schemas.ExploreResponse
         )
 
     dimension = agg.DIMENSION_BY_KEY[params.group_by]
-    table_all = agg.aggregate(frame, dimension.column)
+    split = (
+        params.split_by_selection
+        and dimension.key in source.options.splittable_by_selection
+    )
+    columns = [dimension.column, "selection"] if split else [dimension.column]
+    table_all = agg.aggregate(frame, columns)
     table = table_all
     if params.min_fixtures:
         table = table[table["fixtures"] >= params.min_fixtures]
     table = agg.sort_table(table, agg.SORT_BY_KEY[params.sort])
 
     eligible = agg.eligible_for_curves(table_all, source.curve_rule)
-    curves = agg.cumulative_by_slice(frame, dimension.column, source.curve_freq)
+    curves = agg.cumulative_by_slice(frame, columns, source.curve_freq)
     curves = curves[curves["slice"].isin(eligible["slice"])]
 
     totals = serialise.totals(frame)

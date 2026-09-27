@@ -160,6 +160,24 @@ def test_missing_side_is_its_own_slice_not_dropped(with_missing_side):
     )
 
 
+
+def test_split_by_selection_keeps_every_row(with_missing_side):
+    """Two columns make one slice per pair; a missing side is still a slice."""
+    table = agg.aggregate(with_missing_side, ["bookie", "selection"])
+    for name in table["slice"]:
+        bookie, side = name.split(" · ")
+        assert bookie and side
+    assert any(name.endswith(" · (no value)") for name in table["slice"])
+    assert table["turnover"].sum() == pytest.approx(with_missing_side["turnover"].sum())
+    assert table["bets"].sum() == with_missing_side["n_bets"].sum()
+
+
+def test_split_curves_use_the_same_names(with_missing_side):
+    columns = ["bookie", "selection"]
+    table = agg.aggregate(with_missing_side, columns)
+    curves = agg.cumulative_by_slice(with_missing_side, columns)
+    assert set(curves["slice"]) == set(table["slice"])
+
 def test_sort_table(matched):
     table = agg.aggregate(matched, "bookie")
     best = agg.sort_table(table, agg.SORT_BY_KEY["roi_desc"])

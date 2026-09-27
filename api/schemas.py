@@ -135,6 +135,8 @@ class ExploreOptions(BaseModel):
     market_types: list[str]
     bookies: list[str]
     dimensions: list[LabelledKey]
+    #: The dimensions "Split by selection" is offered for.
+    splittable_by_selection: list[str]
     sorts: list[LabelledKey]
     compare: CompareRules
 

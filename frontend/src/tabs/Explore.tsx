@@ -78,10 +78,13 @@ export function Explore({
   const cur = options.currency
   const response = result?.response
   const ok = response?.status === 'ok' ? response : null
-  const dimension = options.dimensions.find((d) => d.key === state.groupBy) ?? {
+  const canSplit = options.splittable_by_selection.includes(state.groupBy)
+  const split = canSplit && state.splitBySelection
+  const grouped = options.dimensions.find((d) => d.key === state.groupBy) ?? {
     key: state.groupBy,
     label: state.groupBy,
   }
+  const dimension = split ? { ...grouped, label: `${grouped.label} · Selection` } : grouped
   const dimensionLabel = dimension.label
 
   const barRows = useMemo(() => {
@@ -263,6 +266,18 @@ export function Explore({
               onCommit={(v) => setState((s) => ({ ...s, minFixtures: Math.round(v) }))}
             />
           </div>
+          {canSplit && (
+            <label className="radio split-toggle">
+              <input
+                type="checkbox"
+                checked={state.splitBySelection}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, splitBySelection: e.target.checked }))
+                }
+              />
+              Split by selection
+            </label>
+          )}
 
           <p className="caption">
             {ok.groups_shown} of {ok.groups_total} groups shown

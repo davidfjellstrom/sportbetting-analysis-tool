@@ -81,8 +81,9 @@ work. It explores the history, or a file of your own (below). Filter on fixture
 date, stake range, market type and bookie; group by market type, selection,
 bookie, country, competition, market, event type, position size (what was
 matched on one selection in one match at one bookie, in units), bets-per-row
-bucket, year, month or weekday; sort by turnover, ROI, P/L, fixture count, bets
-per fixture or name; threshold on fixture count. The rows in view are summed up
+bucket, year, month or weekday — and split any of them (but selection and
+competition) by selection too, as in "pinnacle · home"; sort by turnover, ROI,
+P/L, fixture count, bets per fixture or name; threshold on fixture count. The rows in view are summed up
 (turnover, P/L, ROI, bets, matches), and each slice reports bets, fixtures,
 **bets per fixture**, turnover, P/L and turnover-weighted ROI. Then a ROI bar
 chart of the largest slices, and a comparison of up to eight slices over time
