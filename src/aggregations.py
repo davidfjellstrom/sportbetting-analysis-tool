@@ -42,15 +42,18 @@ class Dimension:
     label: str
     column: str
     help: str | None = None
+    #: Whether "Split by selection" is offered. Not for Selection itself, and
+    #: not for Competition, whose groups are too many to split again.
+    splittable: bool = True
 
 
 #: Raw export columns first, then bins derived here for presentation only.
 DIMENSIONS: tuple[Dimension, ...] = (
     Dimension("market_type", "Market type", "market_type"),
-    Dimension("selection", "Selection", "selection"),
+    Dimension("selection", "Selection", "selection", splittable=False),
     Dimension("bookie", "Bookie", "bookie"),
     Dimension("country", "Country", "country"),
-    Dimension("competition", "Competition", "competition"),
+    Dimension("competition", "Competition", "competition", splittable=False),
     Dimension("market", "Market (sport / period)", "market"),
     Dimension("event_type", "Event type", "event_type"),
     Dimension(
@@ -195,8 +198,23 @@ def available_dimensions(frame_with_dims: pd.DataFrame) -> tuple[Dimension, ...]
     return tuple(d for d in DIMENSIONS if d.column in frame_with_dims.columns)
 
 
-def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Turnover, P/L and ROI per slice.
+NO_VALUE = "(no value)"
+
+
+def slice_names(frame: pd.DataFrame, columns: str | list[str]) -> pd.Series:
+    """Each row's slice: its value, or its values joined, as in "pinnacle · home".
+
+    A missing value is named, never dropped: see :func:`aggregate`.
+    """
+    names = None
+    for column in [columns] if isinstance(columns, str) else columns:
+        part = frame[column].astype("string").fillna(NO_VALUE)
+        names = part if names is None else names + " · " + part
+    return names
+
+
+def aggregate(frame: pd.DataFrame, columns: str | list[str]) -> pd.DataFrame:
+    """Turnover, P/L and ROI per slice of one column, or of two combined.
 
     ``dropna=False`` on purpose: a material share of rows carry no
     ``selection``, and they need not perform like the rest. Dropping them
@@ -207,8 +225,11 @@ def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
     """
     has_bets = "n_bets" in frame.columns
     grouped = (
-        frame.assign(n_bets=frame["n_bets"] if has_bets else 0)
-        .groupby(column, observed=True, dropna=False)
+        frame.assign(
+            n_bets=frame["n_bets"] if has_bets else 0,
+            slice=slice_names(frame, columns),
+        )
+        .groupby("slice")
         .agg(
             bets=("n_bets", "sum"),
             fixtures=("fixture_id", "nunique"),
@@ -216,11 +237,9 @@ def aggregate(frame: pd.DataFrame, column: str) -> pd.DataFrame:
             pl=("pl", "sum"),
         )
         .reset_index()
-        .rename(columns={column: "slice"})
     )
     if not has_bets:
         grouped["bets"] = float("nan")
-    grouped["slice"] = grouped["slice"].astype("string").fillna("(no value)")
     # Turnover-weighted: sum(pl) / sum(turnover), which is what the export's own
     # ROI column measures per row. The unweighted mean of that column is a
     # different number — small stakes are many and can pull it far from the
@@ -386,7 +405,7 @@ def by_period(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
 
 
 def cumulative_by_slice(
-    frame: pd.DataFrame, column: str, freq: str = "M"
+    frame: pd.DataFrame, columns: str | list[str], freq: str = "M"
 ) -> pd.DataFrame:
     """Running P/L and running ROI per slice and period, for the comparison chart.
 
@@ -400,16 +419,17 @@ def cumulative_by_slice(
     positive number, noise keeps wandering.
     """
     monthly = (
-        frame.assign(month=frame["event_day"].dt.to_period(freq))
-        .groupby([column, "month"], observed=True, dropna=False)[["turnover", "pl"]]
+        frame.assign(
+            month=frame["event_day"].dt.to_period(freq),
+            slice=slice_names(frame, columns),
+        )
+        .groupby(["slice", "month"])[["turnover", "pl"]]
         .sum()
         .reset_index()
-        .rename(columns={column: "slice"})
     )
-    monthly["slice"] = monthly["slice"].astype("string").fillna("(no value)")
     monthly["month"] = monthly["month"].dt.to_timestamp()
     monthly = monthly.sort_values(["slice", "month"])
-    grouped = monthly.groupby("slice", observed=True)
+    grouped = monthly.groupby("slice")
     monthly["cum_pl"] = grouped["pl"].cumsum()
     monthly["cum_turnover"] = grouped["turnover"].cumsum()
     monthly["cum_roi_pct"] = 100 * monthly["cum_pl"] / monthly["cum_turnover"]

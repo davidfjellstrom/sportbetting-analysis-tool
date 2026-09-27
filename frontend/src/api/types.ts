@@ -120,6 +120,8 @@ export interface ExploreOptions {
   market_types: string[]
   bookies: string[]
   dimensions: LabelledKey[]
+  // The dimensions "Split by selection" is offered for.
+  splittable_by_selection: string[]
   sorts: LabelledKey[]
   compare: CompareRules
 }
@@ -137,6 +139,7 @@ export interface ExploreQuery {
   group_by: DimensionKey
   sort: SortKey
   min_fixtures: number
+  split_by_selection?: boolean
 }
 
 export interface ViewTotals extends Totals {

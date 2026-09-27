@@ -108,6 +108,9 @@ def test_explore_options(client, df):
     assert body["bookies"] == ["betfair", "cashout", "pinnacle"]
     assert [d["key"] for d in body["dimensions"]] == [d.key for d in agg.DIMENSIONS]
     assert [s["key"] for s in body["sorts"]] == [s.key for s in agg.SORTS]
+    splittable = body["splittable_by_selection"]
+    assert "selection" not in splittable and "competition" not in splittable
+    assert {"market_type", "bookie", "position_size", "year"} <= set(splittable)
     assert body["compare"] == {
         "min_turnover": 350.0, "min_bets": 2000, "min_fixtures": None, "max_series": 8
     }
@@ -224,6 +227,33 @@ def test_explore_curves_only_for_eligible_groups(client, monkeypatch):
         100 * last["cum_pl"] / last["cum_turnover"]
     )
 
+
+
+def test_explore_split_by_selection(client, df):
+    plain = strict_json(client.get("/api/explore", params={"group_by": "bookie"}))
+    split = strict_json(
+        client.get(
+            "/api/explore", params={"group_by": "bookie", "split_by_selection": "true"}
+        )
+    )
+    names = {r["slice"] for r in split["table"]}
+    assert all(" · " in n for n in names)
+    assert {n.split(" · ")[0] for n in names} == {r["slice"] for r in plain["table"]}
+    assert split["view"] == plain["view"]
+
+
+def test_explore_split_is_ignored_where_it_is_not_offered(client):
+    params = {"group_by": "selection"}
+    plain = strict_json(client.get("/api/explore", params=params))
+    split = strict_json(
+        client.get("/api/explore", params={**params, "split_by_selection": "true"})
+    )
+    assert split["table"] == plain["table"]
+
+
+def test_upload_without_selection_offers_no_split(client, export_without):
+    body = strict_json(post_csv(client, export_without("Selection")))
+    assert body["units"]["explore_options"]["splittable_by_selection"] == []
 
 def test_explore_without_eligible_groups(client):
     body = strict_json(client.get("/api/explore"))
