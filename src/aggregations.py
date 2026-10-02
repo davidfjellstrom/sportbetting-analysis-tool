@@ -6,8 +6,8 @@ figures, so every number on screen is one the tests in
 
 Everything here is presentation-level: bins for an explorer to group by,
 per-slice totals, per-period totals. None of it is an analysis feature, none
-of it carries an interval, and none of it belongs in ``features.py`` or
-``stats.py``. Two rules from CLAUDE.md are load-bearing all the same:
+of it carries an interval. Two rules from CLAUDE.md are load-bearing all the
+same:
 
 * ROI is turnover-weighted, ``sum(pl) / sum(turnover)``, never the mean of the
   export's per-row ROI column.
@@ -248,9 +248,7 @@ def aggregate(frame: pd.DataFrame, columns: str | list[str]) -> pd.DataFrame:
     grouped["roi_pct"] = 100 * grouped["pl"] / grouped["turnover"]
     # Bets on one fixture win or lose together (CLAUDE.md rule 1), so this is
     # roughly the factor by which the slice's bet count overstates how much
-    # independent information it carries. It is also the column that will drive
-    # the width of the interval once stats.py resamples fixtures rather than
-    # rows.
+    # independent information it carries.
     grouped["bets_per_fixture"] = grouped["bets"] / grouped["fixtures"]
     return grouped[
         ["slice", "bets", "fixtures", "bets_per_fixture", "turnover", "pl", "roi_pct"]

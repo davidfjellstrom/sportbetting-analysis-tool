@@ -84,8 +84,9 @@ report what it dropped.
 ## The price-adjusted-turnover derivation
 
 This was reverse-engineered empirically on an earlier export and is the single
-most fragile piece of domain knowledge in the repo. It belongs in
-`src/odds.py`. **Re-verify it on the current data before relying on it.**
+most fragile piece of domain knowledge in the repo. If it is ever implemented,
+it belongs in `src/odds.py`. **Re-verify it on the current data before relying
+on it.**
 
 ```
 price_adjusted_turnover = turnover * min(1, odds - 1)
@@ -166,12 +167,18 @@ report, with verdicts, including the ones that fail.
 web app in `api/` and `frontend/`, README structure, linting config.
 
 **You must not write unprompted:** `odds.py`, `features.py`, `stats.py`. These
-contain the censoring logic, the `both_sides_flag` grouping and the clustered
-bootstrap — the parts worth struggling with. Offer design feedback, review
-code, suggest approaches, point out bugs. Do not hand over finished
+would contain the censoring logic, the `both_sides_flag` grouping and the
+clustered bootstrap — the parts worth struggling with. Offer design feedback,
+review code, suggest approaches, point out bugs. Do not hand over finished
 implementations unless explicitly asked.
 
 `validate.py` is a grey area. Sketch the interface together first.
+
+**None of these four modules exists today.** Their stubs and the tests that
+failed against them were removed on 2026-10-02: nothing in the app used them,
+and the owner keeps only what is in use. The rules and notes in this file
+still describe how they must work if they are written later. How tests for
+them should be structured is an open question for that time.
 
 ## Implementation notes
 
