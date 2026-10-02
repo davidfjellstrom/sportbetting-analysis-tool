@@ -319,6 +319,29 @@ def test_explore_upload_in_currency_keeps_unit_position_sizes(client, modern_csv
     assert in_units == in_eur
 
 
+def test_upload_resaved_by_swedish_excel_matches_the_original(
+    client, modern_csv: Path, tmp_path: Path
+):
+    # Semicolons, decimal commas and cp1252, as Excel saves "CSV" on Windows.
+    table = pd.read_csv(modern_csv, dtype=str, keep_default_na=False)
+    for col in ("Stake", "Customer turnover", "Customer price adjusted turnover",
+                "Customer P/L", "ROI"):
+        table[col] = table[col].str.replace(".", ",", regex=False)
+    resaved = tmp_path / modern_csv.name
+    resaved.write_bytes(table.to_csv(index=False, sep=";").encode("cp1252"))
+
+    original = strict_json(post_csv(client, modern_csv))
+    assert strict_json(post_csv(client, resaved)) == original
+
+
+def test_upload_that_is_not_a_table_is_a_readable_400(client, tmp_path: Path):
+    path = tmp_path / "broken.csv"
+    path.write_bytes(b'Event,Event Day\n"unterminated')
+    response = post_csv(client, path)
+    assert response.status_code == 400
+    assert "does not read as a CSV table" in response.json()["detail"]
+
+
 def test_upload_with_a_chosen_unit(client, modern_csv: Path):
     assert strict_json(post_csv(client, modern_csv, unit=10))["file"]["unit_used"] == 10
 

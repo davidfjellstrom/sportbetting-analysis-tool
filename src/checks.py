@@ -231,6 +231,31 @@ def check_amounts_non_negative(df: pd.DataFrame) -> Check:
     )
 
 
+def check_amounts_parsed(df: pd.DataFrame) -> Check:
+    """Every row's turnover, P/L, stake and bet count must have read as a number.
+
+    The loader turns anything that is not a number into NaN rather than
+    failing, and no export has ever left these blank. So a NaN here is a value
+    the loader could not read — a decimal mark or thousands separator it did
+    not expect — and :func:`loader.matched` would quietly treat that row as
+    unmatched. ``roi`` and ``price_adjusted_turnover`` are blank by design on
+    some rows and are not checked.
+    """
+    cols = [c for c in ("turnover", "pl", "stake", "n_bets") if c in df.columns]
+    blank = df[cols].isna().sum()
+    bad = int(df[cols].isna().any(axis=1).sum())
+    where = ", ".join(
+        f"{loader.SOURCE_HEADER[c]} ({n:,})" for c, n in blank.items() if n
+    )
+    return Check(
+        "amounts_parsed",
+        bad == 0,
+        Severity.ERROR,
+        f"{bad:,} row(s) with an amount that is blank or not a number"
+        + (f": {where}" if where else ""),
+    )
+
+
 def check_pat_within_turnover(df: pd.DataFrame) -> Check:
     """``price_adjusted_turnover / turnover`` must respect the derivation.
 
@@ -404,6 +429,7 @@ def run_checks(df: pd.DataFrame) -> CheckReport:
         check_roi_consistent(df),
         check_turnover_within_stake(df),
         check_amounts_non_negative(df),
+        check_amounts_parsed(df),
         check_pat_within_turnover(df),
         check_event_day_parsed(df),
         check_dates_plausible(df),

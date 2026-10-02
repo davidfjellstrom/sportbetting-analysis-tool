@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+
 import pandas as pd
 import pytest
 
@@ -177,3 +179,78 @@ def test_in_currency_scales_money_only_and_relabels(df):
 def test_in_currency_rejects_non_positive_rate(df):
     with pytest.raises(ValueError):
         loader.in_currency(df, 0, "SEK")
+
+
+# --------------------------------------------------------------------------
+# Files resaved by a spreadsheet. Excel in a decimal-comma locale (Swedish,
+# German, …) saves semicolons and decimal commas, and plain "CSV" on Windows
+# is cp1252, not UTF-8. Each must load to exactly the frame the original does.
+# --------------------------------------------------------------------------
+
+MONEY_HEADERS = (
+    "Stake",
+    "Customer turnover",
+    "Customer price adjusted turnover",
+    "Customer P/L",
+    "ROI",
+)
+
+
+def _resaved(modern_csv, *, sep: str, decimal: str, encoding: str) -> bytes:
+    table = pd.read_csv(modern_csv, dtype=str, keep_default_na=False)
+    table.loc[0, "Event"] = "Malmö FF v Häcken"  # not ASCII, so encoding matters
+    if decimal == ",":
+        for col in MONEY_HEADERS:
+            table[col] = table[col].str.replace(".", ",", regex=False)
+    return table.to_csv(index=False, sep=sep).encode(encoding)
+
+
+@pytest.mark.parametrize(
+    ("sep", "decimal", "encoding"),
+    [
+        (",", ".", "utf-8-sig"),  # the original with a byte-order mark
+        (";", ",", "utf-8-sig"),  # Excel, "CSV UTF-8"
+        (";", ",", "cp1252"),  # Excel on Windows, plain "CSV"
+        (";", ".", "utf-8"),  # semicolons, decimal point
+        ("\t", ".", "utf-8"),  # tab-separated
+    ],
+)
+def test_resaved_export_loads_like_the_original(modern_csv, sep, decimal, encoding):
+    original = loader.load_upload(
+        io.BytesIO(_resaved(modern_csv, sep=",", decimal=".", encoding="utf-8")),
+        "x.csv",
+    )
+    resaved = loader.load_upload(
+        io.BytesIO(_resaved(modern_csv, sep=sep, decimal=decimal, encoding=encoding)),
+        "x.csv",
+    )
+    pd.testing.assert_frame_equal(resaved, original)
+    assert resaved.loc[0, "event"] == "Malmö FF v Häcken"
+
+
+def test_read_export_reports_the_format_it_found(modern_csv):
+    payload = _resaved(modern_csv, sep=";", decimal=",", encoding="cp1252")
+    _, fmt = loader.read_export(payload, "x.csv")
+    assert fmt == loader.CsvFormat(encoding="cp1252", delimiter=";", decimal=",")
+
+
+def test_comma_in_a_text_column_is_not_a_decimal_comma(modern_csv):
+    # A semicolon file whose amounts use points: "1,5" may appear in text
+    # (an event name), but that must not flip the decimal mark.
+    table = pd.read_csv(modern_csv, dtype=str, keep_default_na=False)
+    table.loc[0, "Event"] = "Team 1,5 v Team 2"
+    _, fmt = loader.read_export(table.to_csv(index=False, sep=";").encode(), "x.csv")
+    assert fmt.decimal == "."
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (b"", "empty"),
+        (b"   \n\n", "empty"),
+        (b'Event,Event Day\n"unterminated', "does not read as a CSV table"),
+    ],
+)
+def test_unreadable_upload_raises_a_message_for_people(payload, message):
+    with pytest.raises(loader.SchemaError, match=message):
+        loader.load_upload(io.BytesIO(payload), "x.csv")
