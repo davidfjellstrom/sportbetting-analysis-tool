@@ -2,7 +2,6 @@
 
 This module owns everything between "CSV on disk" and "a tidy DataFrame".
 It deliberately computes nothing: no implied odds, no features, no statistics.
-Those live in ``odds.py``, ``features.py`` and ``stats.py``.
 
 Two schema facts drive most of the code here (CLAUDE.md -> Critical facts):
 
@@ -53,9 +52,8 @@ COLUMN_MAP: dict[str, str] = {
     "ROI": "roi",
 }
 
-#: Columns every export in the history must carry. ``features.py``, ``stats.py``
-#: and ``validate.py`` group on market, market type and selection, so the
-#: history is held to the full schema.
+#: Columns every export in the history must carry. The analysis groups on
+#: market, market type and selection, so the history is held to the full schema.
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "event",
     "market",
@@ -112,7 +110,7 @@ MONEY_COLUMNS: tuple[str, ...] = ("stake", "turnover", "pl", "price_adjusted_tur
 #: The clustering unit for every standard error in this repo (CLAUDE.md rule 1).
 FIXTURE_KEY: tuple[str, ...] = ("event", "event_day")
 
-#: Grouping key for the both-sides-of-one-market check (features.py).
+#: Grouping key for the both-sides-of-one-market check.
 POSITION_KEY: tuple[str, ...] = ("event", "event_day", "market", "market_type")
 
 #: Market types treated as novelty markets; negative in both periods.

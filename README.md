@@ -38,9 +38,9 @@ previous run.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-python -m pip install -e ".[dev,api,stats]"
+python -m pip install -e ".[dev,api]"
 
-pytest -m "not owner"                 # tests for the modules that exist today
+pytest
 ruff check .
 ```
 
@@ -156,10 +156,6 @@ data/processed/       The same exports in units. Committed. What the app reads.
 src/loader.py         CSV -> tidy frame; fixture ids; fill rate; the units rewrite.
 src/checks.py         Data-integrity battery. Reports, never repairs.
 src/aggregations.py   Every figure the apps show: bins, per-slice and per-period totals.
-src/odds.py           Censoring-aware implied odds.            (owner, not written)
-src/features.py       both_sides_flag, n_bets_on_position, …   (owner, not written)
-src/stats.py          Fixture-clustered bootstrap, intervals.  (owner, not written)
-src/validate.py       The skeptic battery.                     (interface sketch)
 api/                  FastAPI: routing, validation, serialisation. Nothing else.
   index.py            The app; also serves the built frontend.
   history.py          data/processed/ read once per process, shared read-only.
@@ -241,16 +237,15 @@ by `checks.py`, and the Overview's odds-coverage metric is the whole-dataset one
 Losing bets are covered too.
 
 A censored value is never the point estimate 2.00 — not in a mean, a bucket
-boundary, or a regression feature. `implied_odds` returns `(odds, is_censored)`
-so the caller has to decide, and censoring propagates through every downstream
-aggregation. This derivation was reverse-engineered on an earlier export and is
+boundary, or a regression feature, and censoring has to propagate through every
+downstream aggregation. This derivation was reverse-engineered on an earlier export and is
 the most fragile piece of domain knowledge here; re-verify it against the
 current files before relying on it.
 
 ### Statistical rules
 
-The contract `stats.py` and `validate.py` must satisfy. They are not style
-preferences — violating them invalidates the analysis.
+The contract any statistical analysis in this repo must satisfy. They are not
+style preferences — violating them invalidates the analysis.
 
 1. Cluster on fixture (`event + event_day`) — always. Row-level standard errors
    badly understate uncertainty.
@@ -260,15 +255,15 @@ preferences — violating them invalidates the analysis.
    Scanning dozens of countries at 95% yields false positives by construction.
 5. Out-of-sample replication is the gate, not in-sample significance.
 
-Until those modules exist, the explorer deliberately stops short of a verdict:
+Until such an analysis exists, the explorer deliberately stops short of a verdict:
 it shows point estimates with the fixture counts behind them and says plainly
 how many slices are on screen. A number on the Explore tab is a description of
 what happened, never a claim that it will happen again.
 
 ### Candidate patterns
 
-The hypotheses the machinery is built to test. None has a verdict until
-`validate.py` runs; all of them, failures included, go in the report.
+The hypotheses worth testing. None has a verdict yet; when they are tested,
+all of them, failures included, go in the report.
 
 - Behavioural: stake size, number of bets on a position, `both_sides_flag`,
   over vs under.
@@ -284,14 +279,7 @@ The hypotheses the machinery is built to test. None has a verdict until
 | `loader.py`, `checks.py`, `aggregations.py` | Written and tested. |
 | `api/` | Written and tested on synthetic data. |
 | Overview, Explore (with your own file) | Working on real exports. |
-| `odds.py`, `features.py`, `stats.py` | Signatures and contracts only; every function raises. |
-| `validate.py` | Interface proposal, open questions in the module docstring. |
-| Verdicts | No tab yet; the hypotheses are listed under Candidate patterns. |
-
-`tests/test_odds.py`, `test_features.py` and `test_stats.py` state the contracts
-the unwritten modules must satisfy and are marked `owner`. They fail until those
-modules exist, which is the intended workflow — `pytest -m "not owner"` is the
-suite that should be green.
+| Odds, features, statistics, verdicts | Not started. The rules above say how they must work. |
 
 ### Units
 

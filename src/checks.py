@@ -260,9 +260,8 @@ def check_pat_within_turnover(df: pd.DataFrame) -> Check:
     """``price_adjusted_turnover / turnover`` must respect the derivation.
 
     The ratio is bounded at 1 by ``min(1, odds - 1)``; the observed ceiling is
-    1.0227. A ratio past :data:`MAX_PAT_RATIO` means the formula in
-    ``odds.py`` no longer describes this export, and every derived odds is
-    suspect.
+    1.0227. A ratio past :data:`MAX_PAT_RATIO` means the odds derivation no
+    longer describes this export, and every derived odds is suspect.
     """
     if "price_adjusted_turnover" not in df.columns:
         return Check("pat_within_turnover", True, Severity.INFO, "column absent")
