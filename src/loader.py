@@ -21,6 +21,9 @@ the terminal and written nowhere, so the processed files cannot be scaled back.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -122,6 +125,97 @@ SOURCE_HEADER: dict[str, str] = {v: k for k, v in COLUMN_MAP.items()}
 
 class SchemaError(ValueError):
     """Raised when an export does not look like a Sportmarket Pro CSV."""
+
+
+#: Delimiters a spreadsheet may save an export with. Sportmarket writes commas;
+#: Excel in a locale whose decimal mark is a comma (Swedish, German, …) saves
+#: semicolons and decimal commas instead.
+DELIMITERS: tuple[str, ...] = (",", ";", "\t")
+
+#: Encodings tried in order. ``utf-8-sig`` also reads plain UTF-8 and strips the
+#: byte-order mark Excel's "CSV UTF-8" adds; ``cp1252`` is what Excel on Windows
+#: saves as plain "CSV" in Western European locales.
+ENCODINGS: tuple[str, ...] = ("utf-8-sig", "cp1252")
+
+_DECIMAL_COMMA = re.compile(r"^\s*-?\d+,\d+\s*$")
+
+
+@dataclass(frozen=True)
+class CsvFormat:
+    """How an export was written: its encoding, delimiter and decimal mark."""
+
+    encoding: str
+    delimiter: str
+    decimal: str
+
+
+def _decode(payload: bytes, source: str) -> tuple[str, str]:
+    for encoding in ENCODINGS:
+        try:
+            return payload.decode(encoding), encoding
+        except UnicodeDecodeError:
+            continue
+    raise SchemaError(
+        f"{source}: the file's characters could not be read. "
+        "Save it as CSV UTF-8 and try again."
+    )
+
+
+def _header_matches(line: str, delimiter: str) -> int:
+    """How many fields of a header line, split on ``delimiter``, are columns."""
+    known = {k.casefold() for k in COLUMN_MAP}
+    fields = next(csv.reader([line], delimiter=delimiter), [])
+    return sum(f.strip().casefold() in known for f in fields)
+
+
+def sniff_format(text: str) -> tuple[str, str]:
+    """The delimiter and decimal mark of a decoded export.
+
+    The delimiter is the one that splits the header into the most known
+    columns: the header is the one line whose content is known in advance, so
+    nothing is guessed from the data. A decimal comma is only possible when the
+    delimiter is not a comma, and is concluded only when the numeric columns
+    hold values like ``1,5`` and none like ``1.5``. A wrong conclusion cannot
+    pass quietly: unreadable amounts fail ``checks.check_amounts_parsed``.
+    """
+    header = next((line for line in text.splitlines() if line.strip()), "")
+    delimiter = max(DELIMITERS, key=lambda d: _header_matches(header, d))
+    decimal = "."
+    if delimiter != ",":
+        raw = pd.read_csv(io.StringIO(text), sep=delimiter, dtype=str)
+        raw = normalise_columns(raw)
+        values = pd.concat(
+            [raw[c].dropna() for c in NUMERIC_COLUMNS if c in raw.columns],
+            ignore_index=True,
+        )
+        if (
+            values.str.match(_DECIMAL_COMMA).any()
+            and not values.str.contains(".", regex=False).any()
+        ):
+            decimal = ","
+    return delimiter, decimal
+
+
+def read_export(payload: bytes, source: str) -> tuple[pd.DataFrame, CsvFormat]:
+    """Parse an export's bytes as written by Sportmarket or resaved by Excel.
+
+    Returns the untouched table and the format it was read in. Anything that
+    cannot be parsed raises :class:`SchemaError` with a message meant for the
+    person who chose the file, not a parser's internals.
+    """
+    text, encoding = _decode(payload, source)
+    if not text.strip():
+        raise SchemaError(f"{source}: the file is empty.")
+    try:
+        delimiter, decimal = sniff_format(text)
+        table = pd.read_csv(io.StringIO(text), sep=delimiter, decimal=decimal)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
+        raise SchemaError(
+            f"{source}: this does not read as a CSV table ({exc}). "
+            "Upload the export as Sportmarket Pro produced it, or save it "
+            "from a spreadsheet as CSV."
+        ) from exc
+    return table, CsvFormat(encoding, delimiter, decimal)
 
 
 @dataclass(frozen=True)
@@ -250,7 +344,8 @@ def _build(
 def load_file(path: str | Path) -> pd.DataFrame:
     """Read one yearly export. Normalises names and types; drops nothing."""
     path = Path(path)
-    return _build(pd.read_csv(path), path.name)
+    table, _ = read_export(path.read_bytes(), path.name)
+    return _build(table, path.name)
 
 
 def load_upload(buffer, name: str) -> pd.DataFrame:
@@ -261,9 +356,12 @@ def load_upload(buffer, name: str) -> pd.DataFrame:
     tells a merged frame which rows arrived this way.
 
     Only :data:`UPLOAD_REQUIRED_COLUMNS` are required; see
-    :func:`missing_columns` for what the file left out.
+    :func:`missing_columns` for what the file left out. A file resaved by a
+    spreadsheet — semicolons, decimal commas, Windows encoding — reads the
+    same as the original; see :func:`read_export`.
     """
-    return _build(pd.read_csv(buffer), name, UPLOAD_REQUIRED_COLUMNS)
+    table, _ = read_export(buffer.read(), name)
+    return _build(table, name, UPLOAD_REQUIRED_COLUMNS)
 
 
 def load_raw(

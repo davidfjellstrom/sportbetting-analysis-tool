@@ -33,6 +33,7 @@ def test_report_covers_every_check_and_is_printable(df):
         "roi_consistent",
         "turnover_within_stake",
         "amounts_non_negative",
+        "amounts_parsed",
         "pat_within_turnover",
         "event_day_parsed",
         "dates_plausible",
@@ -130,6 +131,21 @@ def test_unparseable_date_is_an_error(df):
     check = checks.check_event_day_parsed(bad)
     assert not check.passed
     assert check.severity is checks.Severity.ERROR
+
+
+def test_unreadable_amount_is_an_error_naming_the_column(df):
+    bad = df.copy()
+    bad.loc[bad.index[0], "turnover"] = float("nan")
+    check = checks.check_amounts_parsed(bad)
+    assert not check.passed
+    assert check.severity is checks.Severity.ERROR
+    assert "Customer turnover (1)" in check.detail
+
+
+def test_blank_roi_and_pat_are_not_unreadable_amounts(df):
+    # Both are blank by design on some rows of the synthetic export.
+    assert df["roi"].isna().any() and df["price_adjusted_turnover"].isna().any()
+    assert checks.check_amounts_parsed(df).passed
 
 
 def test_implausible_date_is_a_warning(df):

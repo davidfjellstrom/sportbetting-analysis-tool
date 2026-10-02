@@ -118,6 +118,15 @@ filled in: without `Nr of Bets` the bet count reads "—", not the number of row
 The history in `data/processed/` is still held to the full schema, because the
 analysis modules group on market, market type and selection.
 
+A file opened and saved again in a spreadsheet reads the same as the original.
+Excel in a decimal-comma locale such as Swedish saves semicolons and decimal
+commas, and its plain "CSV" on Windows is not UTF-8; the loader takes the
+delimiter from the header (the one line whose content is known in advance), a
+decimal comma only when the amounts show one and never a point, and the
+encoding from whichever of UTF-8 and Windows-1252 decodes the file. A wrong
+guess cannot pass quietly: an amount that did not read as a number fails the
+`amounts_parsed` check.
+
 The server keeps nothing between requests, so the browser sends the file along
 with every change of filter; it is explored by the same code as the history,
 never mixed with it. Curves run by day rather than by month, and a group earns
@@ -207,7 +216,7 @@ because no figure below it can be trusted.
 
 Three severities. `ERROR` means the analysis would be wrong (mixed currencies,
 `roi` disagreeing with `pl / turnover`, turnover above the stake offered, a ratio
-the odds derivation cannot produce). `WARN` means a human should look (an
+the odds derivation cannot produce, an amount that did not read as a number). `WARN` means a human should look (an
 unrecognised market type, duplicate rows). `INFO` never fails and carries the
 coverage figures so drift is visible at a glance.
 
